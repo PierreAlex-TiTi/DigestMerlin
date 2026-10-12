@@ -1,0 +1,26 @@
+# DigestMerlin settings - copy to /jffs/addons/digestmerlin.d/digestmerlin.conf
+# Every line is optional: the values below are the defaults.
+
+# Sections to leave out, by name (skynet vpn speedtest backupmon devices system)
+DISABLED_SECTIONS=""
+
+# Text added in front of the e-mail subject, e.g. "[Home] "
+SUBJECT_PREFIX=""
+
+# VPN: alert when a WireGuard client has had no handshake for this long (seconds)
+WG_HANDSHAKE_MAX=600
+
+# spdMerlin: alert when the newest result is older than this (hours)
+SPEEDTEST_MAX_AGE_H=25
+
+# BACKUPMON: alert when the last NVRAM backup is older than this (hours)
+BACKUP_MAX_AGE_H=26
+
+# New devices: 1 = ignore random "private" MAC addresses used by phones/laptops
+DEVICES_IGNORE_PRIVATE_MAC=0
+
+# System: alert when /jffs or the USB drive is this full (%)
+DISK_ALERT_PCT=90
+
+# System: alert when the router has not rebooted for this many days (empty = off)
+REBOOT_MAX_DAYS=""
