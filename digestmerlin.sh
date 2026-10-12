@@ -13,7 +13,7 @@
 # tool is not installed are skipped. A failing or hanging section never stops
 # the e-mail: it is reported as unavailable.
 
-VERSION="0.1.2"
+VERSION="0.1.3"
 SCRIPT_PATH="/jffs/scripts/digestmerlin.sh"
 DM_DIR="${DM_DIR:-/jffs/addons/digestmerlin.d}"
 SECTIONS_DIR="${SECTIONS_DIR:-$DM_DIR/sections}"

@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.1.3 - 2026-10-12
+- Installer: "curl not found" on some routers although curl is installed (the shell's
+  "command -v" is unreliable there). Commands are now tested by running them.
+- nvram reads: same fix for detecting "timeout", so a hanging nvram read is always cut after 5 s.
+
 ## v0.1.2 - 2026-10-12
 - VPN: OpenVPN clients (connected, connecting, error, stopped while set to start with WAN).
 - Ages under one minute shown as "<1m".

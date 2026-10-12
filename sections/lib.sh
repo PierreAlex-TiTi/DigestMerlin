@@ -76,9 +76,10 @@ state_set() {
 
 # nvram reads can hang on some firmware builds: never wait more than 5 s.
 # BusyBox before 1.30 wants "timeout -t 5", later versions "timeout 5".
-if timeout --help 2>&1 | grep -q -- '-t SEC'; then
+# Each form is tested by running it ("command -v" is not reliable on routers).
+if timeout -t 1 true >/dev/null 2>&1; then
     nv() { timeout -t 5 nvram get "$1" 2>/dev/null; }
-elif command -v timeout >/dev/null 2>&1; then
+elif timeout 1 true >/dev/null 2>&1; then
     nv() { timeout 5 nvram get "$1" 2>/dev/null; }
 else
     nv() { nvram get "$1" 2>/dev/null; }

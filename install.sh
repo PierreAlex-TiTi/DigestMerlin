@@ -15,7 +15,8 @@ umask 022
 fail() { echo "ERROR: $*" >&2; rm -rf "$TMP"; exit 1; }
 
 [ -d /jffs/scripts ] || fail "/jffs/scripts not found - is this an Asuswrt-Merlin router with JFFS enabled?"
-command -v curl >/dev/null 2>&1 || fail "curl not found"
+# Test by running it: "command -v" is not reliable in every router shell.
+curl --version >/dev/null 2>&1 || fail "curl not found"
 
 # Download everything first: a failed download never leaves a half-installed copy.
 TMP="/tmp/digestmerlin-install.$$"
