@@ -117,11 +117,17 @@ are reported as new.
 
 ## Settings
 
-Copy the sample and edit it; every line is optional:
+Nothing needs to be configured: the defaults below are used until you change them.
+To change a setting, create your own settings file from the sample, then edit it:
 
 ```sh
 cp /jffs/addons/digestmerlin.d/digestmerlin.conf.sample /jffs/addons/digestmerlin.d/digestmerlin.conf
+nano /jffs/addons/digestmerlin.d/digestmerlin.conf    # or vi (nano: opkg install nano)
 ```
+
+The copy alone changes nothing (it holds the defaults). Edit a value, save, then check the effect
+with `sh /jffs/scripts/digestmerlin.sh preview`. For example, `SUBJECT_PREFIX="[Home] "` makes the
+subject start with `[Home]`. Your settings file is kept when you update DigestMerlin.
 
 | Setting | Default | Meaning |
 |---|---|---|
