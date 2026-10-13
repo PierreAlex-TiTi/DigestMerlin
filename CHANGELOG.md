@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.1.4 - 2026-10-13
+- System: only scripts and executable files writable by anyone raise an alert (they run as root).
+  Data files left writable by some add-ons (e.g. spdMerlin results) are reported on an
+  information line, grouped by add-on, without an alert.
+
 ## v0.1.3 - 2026-10-12
 - Installer: "curl not found" on some routers although curl is installed (the shell's
   "command -v" is unreliable there). Commands are now tested by running them.

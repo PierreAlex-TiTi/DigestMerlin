@@ -52,7 +52,7 @@ Last boot: Sun 11 Oct 03:03 (up 1d19h)
 Load: 1.18 1.16 1.15 | memory 61% used | swap 0 MB used | CPU 64C
 Storage /jffs: 22% used
 Storage Entware (USB): 5% used
-World-writable files in /jffs: 0
+Scripts writable by anyone: 0
 
 === ALERTS ===
 None
@@ -73,7 +73,7 @@ When something is wrong, the subject becomes `[ATTENTION]` and the ALERTS sectio
 | Speed tests | spdMerlin | latest result per interface | no new result for 25 h, failed tests |
 | Backups | BACKUPMON | last NVRAM / JFFS / USB backup | last NVRAM backup older than 26 h, BACKUPMON errors |
 | New devices | DHCP (dnsmasq) | MAC addresses never seen before | a new device joined the LAN |
-| System | — | firmware (and pending MerlinAU update), uptime, load, memory, temperature, storage, world-writable files in /jffs | firmware changed, disk almost full, scripts writable by anyone |
+| System | — | firmware (and pending MerlinAU update), uptime, load, memory, temperature, storage, files writable by anyone in /jffs | firmware changed, disk almost full, a script writable by anyone |
 
 ## Requirements
 

@@ -60,17 +60,34 @@ for mp in /jffs /opt; do
     [ "$pct" -ge "$DISK_ALERT_PCT" ] && add_alert "System: $label is ${pct}% full"
 done
 
-# --- Scripts writable by anyone: a script anyone can edit runs as root.
+# --- Files writable by anyone. A writable SCRIPT is dangerous (it runs as root):
+# alert. Writable DATA files (results, lists) are common - some add-ons create
+# them that way - so they are only reported, grouped by add-on.
 FIND=""
 [ -x /opt/bin/find ] && FIND=/opt/bin/find   # BusyBox find may lack -perm
 if [ -n "$FIND" ]; then
-    ww=$("$FIND" /jffs/scripts /jffs/addons /jffs/configs -perm -o+w ! -type l 2>/dev/null)
-    if [ -n "$ww" ]; then
-        n=$(printf '%s\n' "$ww" | wc -l)
-        echo "World-writable files in /jffs: $n"
-        add_alert "System: $n world-writable file(s) in /jffs (e.g. $(printf '%s\n' "$ww" | head -1)) - fix with chmod o-w"
+    tmp="/tmp/digestmerlin-ww.$$"
+    {
+        "$FIND" /jffs/scripts -perm -o+w ! -type l 2>/dev/null
+        "$FIND" /jffs/addons /jffs/configs -perm -o+w -type f \( -perm -u+x -o -name '*.sh' \) 2>/dev/null
+    } | sort -u > "$tmp.scripts"
+    "$FIND" /jffs/addons /jffs/configs -perm -o+w ! -type l 2>/dev/null \
+        | awk -v f="$tmp.scripts" 'BEGIN {while ((getline l < f) > 0) s[l]} !($0 in s)' > "$tmp.data"
+    n_s=$(grep -c . "$tmp.scripts")
+    n_d=$(grep -c . "$tmp.data")
+    if [ "$n_s" -gt 0 ]; then
+        echo "Scripts writable by anyone: $n_s"
+        add_alert "System: $n_s script(s) writable by anyone - they run as root (e.g. $(head -1 "$tmp.scripts")) - fix with chmod o-w"
     else
-        echo "World-writable files in /jffs: 0"
+        echo "Scripts writable by anyone: 0"
     fi
+    if [ "$n_d" -gt 0 ]; then
+        # Group by add-on: /jffs/addons/spdmerlin.d/... -> spdmerlin
+        who=$(awk '{p = $0; sub(/^\/jffs\/(addons|configs)\/?/, "", p); split(p, a, "/");
+                    o = a[1]; sub(/\.d$/, "", o); if (o == "") o = "configs"; c[o]++}
+                   END {for (o in c) printf "%s%s %d", (n++ ? ", " : ""), o, c[o]}' "$tmp.data")
+        echo "Data files writable by anyone: $n_d ($who)"
+    fi
+    rm -f "$tmp.scripts" "$tmp.data"
 fi
 exit 0
