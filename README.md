@@ -112,8 +112,10 @@ sh /jffs/scripts/digestmerlin.sh uninstall        # remove the schedule
 `install` adds a cron job and one line, marked `# DigestMerlin`, to `/jffs/scripts/services-start`
 so the schedule survives reboots. `uninstall` removes both.
 
-The first `run` records the devices currently on your LAN as known: only devices seen after that
-are reported as new.
+The first `run` records the devices currently on your LAN. Devices that were offline at
+that moment (a TV, a printer, a console...) are reported once when they reconnect during
+the following days: a good way to review everything connected to your network.
+After that, only devices never seen before are reported.
 
 ## Settings
 
