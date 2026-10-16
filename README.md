@@ -59,6 +59,7 @@ None
 
 Generated 2026-10-12 22:36 - covers the last 24h
 Sections: 6 OK
+DigestMerlin v0.2.0
 ```
 
 When something is wrong, the subject becomes `[ATTENTION]` and the ALERTS section says what, e.g.
@@ -82,8 +83,8 @@ When something is wrong, the subject becomes `[ATTENTION]` and the ALERTS sectio
 - Entware is recommended (its `find` is used for the world-writable check) but not required.
 
 Tested on an RT-AX86U Pro with Merlin 3006.102.9, Skynet 9.0.5, VPNMON-R3, spdMerlin, BACKUPMON and
-MerlinAU 1.7.1, with WireGuard clients. The OpenVPN checks have only been tested on a simulated router so
-far: reports from OpenVPN users and other models are welcome.
+MerlinAU 1.7.1, with WireGuard clients. Also reported working on an RT-BE88U. The OpenVPN checks have
+only been tested on a simulated router so far: reports from OpenVPN users and other models are welcome.
 
 ## Install / update
 
@@ -97,7 +98,7 @@ Then open the menu (option 1 previews the digest without sending anything):
 sh /jffs/scripts/digestmerlin.sh
 ```
 
-Running the installer again updates DigestMerlin and keeps your settings.
+Running the installer again updates DigestMerlin and keeps your settings, history and schedule.
 
 ## Usage
 
@@ -109,7 +110,7 @@ sh /jffs/scripts/digestmerlin.sh
 
 ![DigestMerlin menu](menu.png)
 
-Everything in the menu can also be done with a command:
+The main actions also exist as commands - handy for scripts, and `section` helps to troubleshoot one section:
 
 ```sh
 sh /jffs/scripts/digestmerlin.sh preview          # build and print the digest (no e-mail)
@@ -197,7 +198,6 @@ a timeout), `fmt_age`, `fmt_time`, and `state_get` / `state_set` to remember a v
 
 ## Uninstall
 
-```sh
 Menu option 7 removes everything (schedule, settings, history, files). Or by hand:
 
 ```sh
