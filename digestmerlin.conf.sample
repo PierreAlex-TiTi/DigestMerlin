@@ -1,5 +1,6 @@
-# DigestMerlin settings - copy to /jffs/addons/digestmerlin.d/digestmerlin.conf
+# DigestMerlin settings - the menu (sh /jffs/scripts/digestmerlin.sh) edits them for you.
 # Every line is optional: the values below are the defaults.
+# To edit by hand: copy to /jffs/addons/digestmerlin.d/digestmerlin.conf
 
 # Sections to leave out, by name (skynet vpn speedtest backupmon devices system)
 DISABLED_SECTIONS=""
@@ -24,3 +25,6 @@ DISK_ALERT_PCT=90
 
 # System: alert when the router has not rebooted for this many days (empty = off)
 REBOOT_MAX_DAYS=""
+
+# System: alert when the CPU temperature reaches this value in C (empty = off)
+CPU_TEMP_ALERT=""

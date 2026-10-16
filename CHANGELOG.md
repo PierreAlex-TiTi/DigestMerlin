@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.2.0 - 2026-10-16
+- Menu: run `sh /jffs/scripts/digestmerlin.sh` with no argument. Preview, send a test e-mail,
+  change the send time, enable/disable sections, alert thresholds and settings, check for
+  updates, full uninstall, `e` to exit. The commands (preview, run, install...) still work.
+- System: optional CPU temperature alert (`CPU_TEMP_ALERT`, off by default).
+- `SUBJECT_PREFIX`: a space is always added between the prefix and the subject.
+
 ## v0.1.4 - 2026-10-13
 - System: only scripts and executable files writable by anyone raise an alert (they run as root).
   Data files left writable by some add-ons (e.g. spdMerlin results) are reported on an

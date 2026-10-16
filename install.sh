@@ -44,8 +44,8 @@ echo "Installed $(sh "$SCRIPT" version)."
 [ -f /jffs/addons/shared-libs/CustomEMailFunctions.lib.sh ] \
     || echo "NOTE: amtm e-mail is not set up yet - run amtm, option 'em', before using 'run'."
 echo
-echo "Preview the digest now (nothing is sent):"
-echo "    sh $SCRIPT preview"
+echo "Open the menu (preview, send time, sections, settings...):"
+echo "    sh $SCRIPT"
 
 if cru l 2>/dev/null | grep -q "#DigestMerlin#"; then
     echo "The daily e-mail is already scheduled: $(cru l | grep '#DigestMerlin#' | awk '{printf "%02d:%02d", $2, $1}')"

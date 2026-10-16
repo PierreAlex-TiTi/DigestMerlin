@@ -73,7 +73,7 @@ When something is wrong, the subject becomes `[ATTENTION]` and the ALERTS sectio
 | Speed tests | spdMerlin | latest result per interface | no new result for 25 h, failed tests |
 | Backups | BACKUPMON | last NVRAM / JFFS / USB backup | last NVRAM backup older than 26 h, BACKUPMON errors |
 | New devices | DHCP (dnsmasq) | MAC addresses never seen before | a new device joined the LAN |
-| System | — | firmware (and pending MerlinAU update), uptime, load, memory, temperature, storage, files writable by anyone in /jffs | firmware changed, disk almost full, a script writable by anyone |
+| System | — | firmware (and pending MerlinAU update), uptime, load, memory, temperature, storage, files writable by anyone in /jffs | firmware changed, disk almost full, a script writable by anyone, CPU temperature (optional) |
 
 ## Requirements
 
@@ -91,15 +91,43 @@ far: reports from OpenVPN users and other models are welcome.
 curl -fsSL https://raw.githubusercontent.com/PierreAlex-TiTi/DigestMerlin/main/install.sh -o /tmp/dm-install.sh && sh /tmp/dm-install.sh
 ```
 
-Then look at the digest without sending anything:
+Then open the menu (option 1 previews the digest without sending anything):
 
 ```sh
-sh /jffs/scripts/digestmerlin.sh preview
+sh /jffs/scripts/digestmerlin.sh
 ```
 
 Running the installer again updates DigestMerlin and keeps your settings.
 
 ## Usage
+
+Open the menu:
+
+```sh
+sh /jffs/scripts/digestmerlin.sh
+```
+
+```
+ ===============================================
+   DigestMerlin v0.2.0  -  RT-AX86U_PRO
+ ===============================================
+   Daily e-mail : 18:30
+   Last digest  : Fri 16 Oct 18:30 [OK] sent
+   amtm e-mail  : found
+   Sections     : 6 of 6 enabled
+ -----------------------------------------------
+   1. Preview the digest (nothing is sent)
+   2. Send the digest by e-mail now (test)
+   3. Change the send time
+   4. Enable / disable sections
+   5. Alert thresholds and settings
+   6. Check for updates
+   7. Uninstall
+ -----------------------------------------------
+   e. Exit
+```
+
+Everything in the menu can also be done with a command:
 
 ```sh
 sh /jffs/scripts/digestmerlin.sh preview          # build and print the digest (no e-mail)
@@ -120,27 +148,41 @@ After that, only devices never seen before are reported.
 ## Settings
 
 Nothing needs to be configured: the defaults below are used until you change them.
-To change a setting, create your own settings file from the sample, then edit it:
+The easiest way to change them is the menu: option 4 for the sections, option 5 for the rest.
+
+| Setting | Menu | Default | What it does |
+|---|---|---|---|
+| `DISABLED_SECTIONS` | 4 | (none) | Sections left out of the digest, e.g. `"devices speedtest"`. |
+| `WG_HANDSHAKE_MAX` | 5.1 | 600 | Seconds without a WireGuard handshake before a tunnel is reported as not passing traffic. |
+| `SPEEDTEST_MAX_AGE_H` | 5.2 | 25 | Hours without a new spdMerlin result before alerting (a daily test plus one hour of margin). |
+| `BACKUP_MAX_AGE_H` | 5.3 | 26 | Hours since the last BACKUPMON NVRAM backup before alerting. |
+| `DISK_ALERT_PCT` | 5.4 | 90 | Storage use (%) of `/jffs` or the USB drive that raises an alert. |
+| `CPU_TEMP_ALERT` | 5.5 | off | CPU temperature (C) that raises an alert. See below. |
+| `REBOOT_MAX_DAYS` | 5.6 | off | Alert when the router has not rebooted for this many days. See below. |
+| `DEVICES_IGNORE_PRIVATE_MAC` | 5.7 | 0 | `1` = do not report devices using a random "private" MAC address (phones, laptops). |
+| `SUBJECT_PREFIX` | 5.8 | (none) | Text added in front of the e-mail subject. See below. |
+
+**Why two alerts are off by default.** The temperature is always shown in the SYSTEM section,
+but what is normal depends on the model: around 65C on some routers, 80C or more on others. A fixed
+limit would send useless alerts to many users, so you choose it: about 10C above your usual value
+is a good start. Same for reboots: many routers are never rebooted on purpose. If yours reboots on a
+schedule, set the limit just above it (e.g. `8` for a weekly reboot) and the digest tells you when
+a scheduled reboot did not happen.
+
+**Subject prefix.** With `[Home]`, the subject becomes `[Home] [OK] Daily digest RT-AX86U_PRO - ...`.
+Useful when you receive digests from several routers, or to sort them with an e-mail rule.
+In the menu, type `none` to remove it.
+
+**Editing by hand.** The settings live in `/jffs/addons/digestmerlin.d/digestmerlin.conf`
+(created by the menu on the first change). Without the menu, create it from the sample and edit it:
 
 ```sh
 cp /jffs/addons/digestmerlin.d/digestmerlin.conf.sample /jffs/addons/digestmerlin.d/digestmerlin.conf
 nano /jffs/addons/digestmerlin.d/digestmerlin.conf    # or vi (nano: opkg install nano)
 ```
 
-The copy alone changes nothing (it holds the defaults). Edit a value, save, then check the effect
-with `sh /jffs/scripts/digestmerlin.sh preview`. For example, `SUBJECT_PREFIX="[Home] "` makes the
-subject start with `[Home]`. Your settings file is kept when you update DigestMerlin.
-
-| Setting | Default | Meaning |
-|---|---|---|
-| `DISABLED_SECTIONS` | (none) | sections to leave out, e.g. `"devices speedtest"` |
-| `SUBJECT_PREFIX` | (none) | text in front of the subject, e.g. `"[Home] "` |
-| `WG_HANDSHAKE_MAX` | 600 | seconds without a WireGuard handshake before alerting |
-| `SPEEDTEST_MAX_AGE_H` | 25 | hours without a new spdMerlin result before alerting |
-| `BACKUP_MAX_AGE_H` | 26 | hours since the last NVRAM backup before alerting |
-| `DEVICES_IGNORE_PRIVATE_MAC` | 0 | 1 = ignore random "private" MAC addresses (phones, laptops) |
-| `DISK_ALERT_PCT` | 90 | storage use (%) that raises an alert |
-| `REBOOT_MAX_DAYS` | (off) | alert if the router has not rebooted for this many days |
+Check the effect with menu option 1 (or `sh /jffs/scripts/digestmerlin.sh preview`).
+Your settings are kept when you update DigestMerlin.
 
 ## Writing a section
 
@@ -172,6 +214,9 @@ a timeout), `fmt_age`, `fmt_time`, and `state_get` / `state_set` to remember a v
 ```
 
 ## Uninstall
+
+```sh
+Menu option 7 removes everything (schedule, settings, history, files). Or by hand:
 
 ```sh
 sh /jffs/scripts/digestmerlin.sh uninstall

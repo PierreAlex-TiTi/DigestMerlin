@@ -3,6 +3,7 @@
 # router and its add-ons (Skynet, WireGuard/VPNMON-R3, spdMerlin, BACKUPMON...).
 # Read-only: it reports, it never changes the router's configuration.
 #
+#   digestmerlin.sh                  open the menu
 #   digestmerlin.sh preview          build the digest and print it (no e-mail)
 #   digestmerlin.sh run              build the digest and e-mail it
 #   digestmerlin.sh section NAME     run one section (e.g. "vpn") for testing
@@ -13,7 +14,8 @@
 # tool is not installed are skipped. A failing or hanging section never stops
 # the e-mail: it is reported as unavailable.
 
-VERSION="0.1.4"
+VERSION="0.2.0"
+REPO="https://raw.githubusercontent.com/PierreAlex-TiTi/DigestMerlin/main"
 SCRIPT_PATH="/jffs/scripts/digestmerlin.sh"
 DM_DIR="${DM_DIR:-/jffs/addons/digestmerlin.d}"
 SECTIONS_DIR="${SECTIONS_DIR:-$DM_DIR/sections}"
@@ -101,7 +103,7 @@ build_digest() {
     else
         tag="OK"; summary="All green."
     fi
-    SUBJECT="${SUBJECT_PREFIX}[$tag] Daily digest ${host:-router} - $(date '+%Y-%m-%d')"
+    SUBJECT="${SUBJECT_PREFIX:+${SUBJECT_PREFIX% } }[$tag] Daily digest ${host:-router} - $(date '+%Y-%m-%d')"
     BODY="=== SUMMARY ===
 $summary
 
@@ -132,6 +134,7 @@ send_digest() {
         if [ "$rc" -eq 0 ]; then
             log "Daily digest sent ($tag)"
             rm -f "$DM_STATE/unsent"
+            save_last_run "$tag" sent
             return 0
         fi
         log "Sending failed (attempt $try/3, code $rc)"
@@ -142,8 +145,15 @@ send_digest() {
     mkdir -p -m 700 "$DM_STATE"
     printf '%s\n\n%s\n' "$SUBJECT" "$BODY" > "$DM_STATE/unsent"
     chmod 600 "$DM_STATE/unsent"
+    save_last_run "$tag" "NOT sent"
     log "ERROR: digest not sent after 3 attempts (code $rc) - kept in $DM_STATE/unsent"
     return 1
+}
+
+# Shown in the menu header: "epoch|OK|sent"
+save_last_run() {
+    # shellcheck disable=SC2174
+    mkdir -p -m 700 "$DM_STATE" && printf '%s|%s|%s\n' "$(date +%s)" "$1" "$2" > "$DM_STATE/last_run"
 }
 
 do_install() {
@@ -171,7 +181,270 @@ do_uninstall() {
     say "Schedule removed. Files kept in $DM_DIR (delete them to remove everything)."
 }
 
+# ---------------------------------------------------------------- menu
+# The menu only calls the commands above and edits digestmerlin.conf.
+
+# Settings offered in the menu: KEY|default|description|kind (num, opt = number or empty, bool, text)
+SETTINGS="WG_HANDSHAKE_MAX|600|VPN: seconds without a WireGuard handshake|num
+SPEEDTEST_MAX_AGE_H|25|spdMerlin: hours without a new result|num
+BACKUP_MAX_AGE_H|26|BACKUPMON: hours since the last NVRAM backup|num
+DISK_ALERT_PCT|90|Storage: % used|num
+CPU_TEMP_ALERT||CPU temperature in C|opt
+REBOOT_MAX_DAYS||Days without a reboot|opt
+DEVICES_IGNORE_PRIVATE_MAC|0|New devices: ignore private MACs (0 or 1)|bool
+SUBJECT_PREFIX||Text in front of the e-mail subject|text"
+
+pause() { printf '\n Press Enter to continue... '; read -r _ || exit 0; }
+
+# Current value of a setting in digestmerlin.conf (last definition wins), quotes removed.
+conf_get() {
+    [ -f "$DM_CONF" ] || return 0
+    sed -n "s/^$1=//p" "$DM_CONF" | tail -1 | sed 's/^"\(.*\)"$/\1/'
+}
+
+# Write KEY="value" in digestmerlin.conf, replacing an existing line or adding one.
+conf_set() {
+    if [ ! -f "$DM_CONF" ]; then
+        if [ -f "$DM_DIR/digestmerlin.conf.sample" ]; then
+            cp "$DM_DIR/digestmerlin.conf.sample" "$DM_CONF"
+        else
+            printf '# DigestMerlin settings\n' > "$DM_CONF"
+        fi
+    fi
+    DM_LINE="$1=\"$2\"" DM_KEY="$1" awk '
+        BEGIN {k = ENVIRON["DM_KEY"]; line = ENVIRON["DM_LINE"]}
+        index($0, k "=") == 1 {if (!done) print line; done = 1; next}
+        {print}
+        END {if (!done) print line}' "$DM_CONF" > "$DM_CONF.new" \
+        && mv "$DM_CONF.new" "$DM_CONF" && chmod 644 "$DM_CONF"
+}
+
+schedule_time() {
+    cru l 2>/dev/null | grep "#$CRU_ID#" | head -1 | awk '{printf "%02d:%02d", $2, $1}'
+}
+
+menu_header() {
+    printf '\033[2J\033[H'
+    t=$(schedule_time)
+    last="none yet"
+    if [ -f "$DM_STATE/last_run" ]; then
+        IFS='|' read -r lts ltag lstat < "$DM_STATE/last_run"
+        last="$(date -d "@$lts" '+%a %d %b %H:%M' 2>/dev/null) [$ltag] $lstat"
+    fi
+    if [ -f "$CEM_LIB" ]; then mail="found"; else mail="NOT set up - run amtm, option em"; fi
+    n_all=0; n_off=0
+    for mod in "$SECTIONS_DIR"/[0-9][0-9]-*.sh; do
+        [ -f "$mod" ] || continue
+        n_all=$((n_all + 1))
+        case " $(conf_get DISABLED_SECTIONS) " in *" $(section_name "$mod") "*) n_off=$((n_off + 1)) ;; esac
+    done
+    say " ==============================================="
+    say "   DigestMerlin v$VERSION  -  $(nvram get productid 2>/dev/null)"
+    say " ==============================================="
+    say "   Daily e-mail : ${t:-not scheduled}"
+    say "   Last digest  : $last"
+    say "   amtm e-mail  : $mail"
+    say "   Sections     : $((n_all - n_off)) of $n_all enabled"
+    say " -----------------------------------------------"
+}
+
+menu_time() {
+    t=$(schedule_time)
+    say ""
+    say " Daily e-mail: ${t:-not scheduled}"
+    printf ' New time HH:MM, "off" to stop it, Enter to cancel: '
+    read -r ans || exit 0
+    case "$ans" in
+        '') return ;;
+        off|OFF) do_uninstall >/dev/null; say " Daily e-mail stopped." ;;
+        *) do_install "$ans" ;;
+    esac
+    pause
+}
+
+menu_sections() {
+    while :; do
+        printf '\033[2J\033[H'
+        say " Sections - choose a number to switch it on or off"
+        say ""
+        off=" $(conf_get DISABLED_SECTIONS) "
+        i=0
+        for mod in "$SECTIONS_DIR"/[0-9][0-9]-*.sh; do
+            [ -f "$mod" ] || continue
+            i=$((i + 1))
+            name=$(section_name "$mod")
+            title=$(sed -n '2s/^# TITLE: *//p' "$mod")
+            case "$off" in *" $name "*) mark=" " ;; *) mark="x" ;; esac
+            printf '   %d. [%s] %s\n' "$i" "$mark" "${title:-$name}"
+        done
+        say ""
+        say "   b. Back"
+        printf '\n Choose: '
+        read -r ans || exit 0
+        case "$ans" in
+            b|B|'') return ;;
+            *[!0-9]*) continue ;;
+        esac
+        i=0; pick=""
+        for mod in "$SECTIONS_DIR"/[0-9][0-9]-*.sh; do
+            [ -f "$mod" ] || continue
+            i=$((i + 1))
+            [ "$i" -eq "$ans" ] && pick=$(section_name "$mod")
+        done
+        [ -n "$pick" ] || continue
+        new=""
+        found=0
+        for s in $(conf_get DISABLED_SECTIONS); do
+            if [ "$s" = "$pick" ]; then found=1; else new="$new $s"; fi
+        done
+        [ "$found" = "0" ] && new="$new $pick"
+        conf_set DISABLED_SECTIONS "${new# }"
+    done
+}
+
+menu_settings() {
+    while :; do
+        printf '\033[2J\033[H'
+        say " Settings - alerts are raised when a value goes past these limits"
+        say ""
+        i=0
+        printf '%s\n' "$SETTINGS" | while IFS='|' read -r key def desc kind; do
+            i=$((i + 1))
+            v=$(conf_get "$key"); [ -f "$DM_CONF" ] && grep -q "^$key=" "$DM_CONF" || v=$def
+            [ "$kind" = "text" ] && none="none" || none="off"
+            printf '   %d. %-44s [%s]\n' "$i" "$desc" "${v:-$none}"
+        done
+        say ""
+        say "   b. Back"
+        printf '\n Choose: '
+        read -r ans || exit 0
+        case "$ans" in
+            b|B|'') return ;;
+            *[!0-9]*) continue ;;
+        esac
+        line=$(printf '%s\n' "$SETTINGS" | sed -n "${ans}p" 2>/dev/null)
+        [ -n "$line" ] || continue
+        key=${line%%|*}; rest=${line#*|}; def=${rest%%|*}; rest=${rest#*|}; desc=${rest%%|*}; kind=${rest#*|}
+        say ""
+        [ "$kind" = "text" ] && none="none" || none="off"
+        say " $desc (default: ${def:-$none})"
+        case "$kind" in
+            opt)  printf ' New value, "off" to disable, Enter to cancel: ' ;;
+            text) printf ' New text, "none" to remove it, Enter to cancel: ' ;;
+            *)    printf ' New value, Enter to cancel: ' ;;
+        esac
+        read -r val || exit 0
+        [ -n "$val" ] || continue
+        case "$kind" in
+            num)  is_num "$val" || { say " Please enter a number."; pause; continue; } ;;
+            opt)  [ "$val" = "off" ] && val=""
+                  [ -z "$val" ] || is_num "$val" || { say " Please enter a number or off."; pause; continue; } ;;
+            bool) case "$val" in 0|1) ;; *) say " Please enter 0 or 1."; pause; continue ;; esac ;;
+            text) [ "$val" = "none" ] && val=""
+                  case "$val" in *[\"\\\$\`]*) say ' These characters are not allowed: " \ $ `'; pause; continue ;; esac ;;
+        esac
+        conf_set "$key" "$val"
+    done
+}
+
+is_num() { case "$1" in ''|*[!0-9]*) return 1 ;; *) return 0 ;; esac; }
+
+# 1 if version $1 is newer than $2 (numbers separated by dots)
+is_newer() {
+    awk -v a="$1" -v b="$2" 'BEGIN {
+        na = split(a, x, "."); nb = split(b, y, "."); n = (na > nb) ? na : nb
+        for (i = 1; i <= n; i++) { if (x[i] + 0 > y[i] + 0) exit 0; if (x[i] + 0 < y[i] + 0) exit 1 }
+        exit 1 }'
+}
+
+menu_update() {
+    say ""
+    say " Checking GitHub..."
+    remote=$(curl -fsSL --max-time 20 "$REPO/digestmerlin.sh" 2>/dev/null | sed -n 's/^VERSION="\([0-9.]*\)"$/\1/p' | head -1)
+    if [ -z "$remote" ]; then
+        say " Could not reach GitHub - try again later."
+    elif is_newer "$remote" "$VERSION"; then
+        printf ' Version %s is available (you have %s). Update now? [y/N] ' "$remote" "$VERSION"
+        read -r ans || exit 0
+        case "$ans" in
+            y|Y)
+                if curl -fsSL --max-time 30 "$REPO/install.sh" -o /tmp/dm-install.sh; then
+                    sh /tmp/dm-install.sh
+                    rm -f /tmp/dm-install.sh
+                    say ""
+                    say " Open the menu again to use the new version."
+                    exit 0
+                fi
+                say " Download failed - nothing was changed." ;;
+        esac
+    else
+        say " You have the latest version ($VERSION)."
+    fi
+    pause
+}
+
+menu_uninstall() {
+    say ""
+    say " This removes the schedule, the settings, the history and all DigestMerlin files."
+    printf ' Remove DigestMerlin completely? [y/N] '
+    read -r ans || exit 0
+    case "$ans" in
+        y|Y)
+            do_uninstall >/dev/null
+            rm -rf "$DM_DIR" /tmp/digestmerlin.* /tmp/digestmerlin-ww.*
+            rm -f "$SCRIPT_PATH"
+            say " DigestMerlin has been removed. Thanks for trying it!"
+            exit 0 ;;
+    esac
+}
+
+menu() {
+    while :; do
+        menu_header
+        say "   1. Preview the digest (nothing is sent)"
+        say "   2. Send the digest by e-mail now (test)"
+        say "   3. Change the send time"
+        say "   4. Enable / disable sections"
+        say "   5. Alert thresholds and settings"
+        say "   6. Check for updates"
+        say "   7. Uninstall"
+        say " -----------------------------------------------"
+        say "   e. Exit"
+        printf '\n Choose an option: '
+        read -r ans || exit 0
+        case "$ans" in
+            1) say ""; say " Building the digest..."; say ""
+               ( DM_PREVIEW=1; export DM_PREVIEW; build_digest && { say "Subject: $SUBJECT"; say ""; say "$BODY"; } )
+               pause ;;
+            2) say ""; say " Building and sending the digest..."
+               if ( log "Building the daily digest (test from the menu)"; build_digest && send_digest ); then
+                   say " Sent: check your inbox."
+               else
+                   say " NOT sent - check the e-mail settings in amtm (em)."
+               fi
+               pause ;;
+            3) menu_time ;;
+            4) menu_sections ;;
+            5) menu_settings ;;
+            6) menu_update ;;
+            7) menu_uninstall ;;
+            e|E) say ""; exit 0 ;;
+        esac
+        # Settings may have changed: reload them.
+        DISABLED_SECTIONS=""; SUBJECT_PREFIX=""
+        # shellcheck disable=SC1090
+        [ -f "$DM_CONF" ] && . "$DM_CONF"
+    done
+}
+
+usage() {
+    sed -n 's/^#   \(digestmerlin\.sh .*\)/  \1/p' "$0"
+}
+
 case "$1" in
+    ''|menu)
+        if [ -t 0 ]; then menu; else usage; exit 1; fi
+        ;;
     preview)
         DM_PREVIEW=1; export DM_PREVIEW
         build_digest || exit 1
@@ -194,7 +467,7 @@ case "$1" in
     uninstall) do_uninstall ;;
     version)   say "DigestMerlin v$VERSION" ;;
     *)
-        sed -n '5,9s/^# //p' "$0"
+        usage
         exit 1
         ;;
 esac
