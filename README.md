@@ -107,25 +107,7 @@ Open the menu:
 sh /jffs/scripts/digestmerlin.sh
 ```
 
-```
- ===============================================
-   DigestMerlin v0.2.0  -  RT-AX86U_PRO
- ===============================================
-   Daily e-mail : 18:30
-   Last digest  : Fri 16 Oct 18:30 [OK] sent
-   amtm e-mail  : found
-   Sections     : 6 of 6 enabled
- -----------------------------------------------
-   1. Preview the digest (nothing is sent)
-   2. Send the digest by e-mail now (test)
-   3. Change the send time
-   4. Enable / disable sections
-   5. Alert thresholds and settings
-   6. Check for updates
-   7. Uninstall
- -----------------------------------------------
-   e. Exit
-```
+![DigestMerlin menu](menu.png)
 
 Everything in the menu can also be done with a command:
 
