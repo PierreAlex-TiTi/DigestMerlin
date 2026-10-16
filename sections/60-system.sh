@@ -4,6 +4,7 @@
 
 DISK_ALERT_PCT="${DISK_ALERT_PCT:-90}"
 REBOOT_MAX_DAYS="${REBOOT_MAX_DAYS:-}"   # empty = no reboot check
+CPU_TEMP_ALERT="${CPU_TEMP_ALERT:-}"     # empty = no temperature alert
 
 # --- Firmware, and whether it changed since the last digest
 fw="$(nv firmver | tr -d '.').$(nv buildno)_$(nv extendno)"
@@ -49,6 +50,9 @@ temp=""
 raw=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null)
 is_number "$raw" && [ "$raw" -gt 1000 ] && temp=" | CPU $((raw / 1000))C"
 echo "Load: ${load:-?} | memory ${mem} used${swap}${temp}"
+if [ -n "$temp" ] && is_number "$CPU_TEMP_ALERT" && [ $((raw / 1000)) -ge "$CPU_TEMP_ALERT" ]; then
+    add_alert "System: CPU at $((raw / 1000))C (alert set at ${CPU_TEMP_ALERT}C)"
+fi
 
 # --- Storage
 for mp in /jffs /opt; do
