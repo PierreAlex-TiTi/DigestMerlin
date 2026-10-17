@@ -1,7 +1,7 @@
 #!/bin/sh
 # shellcheck disable=SC2034
 version=0.3.0
-VERSION="0.3.0-test7"
+VERSION="0.3.0-test8"
 # Both lines above carry the same number: amtm reads the first, menus of
 # v0.2.0 read the second. Keep them on top, before any other mention.
 #
@@ -36,6 +36,7 @@ DM_STATE="${DM_STATE:-$DM_DIR/state}"
 SENDEMAIL="${SENDEMAIL:-/jffs/scripts/SendEmail}"
 SENDEMAIL_SCRIPT="${SENDEMAIL_SCRIPT:-/jffs/addons/SendEmail.d/SendEmail.sh}"
 CEM_LIB="${CEM_LIB:-/jffs/addons/shared-libs/CustomEMailFunctions.lib.sh}"
+AMTM_MAIL_DIR="${AMTM_MAIL_DIR:-/jffs/addons/amtm/mail}"
 CRU_ID="DigestMerlin"
 LOGTAG="DigestMerlin"
 SECTION_TIMEOUT="${SECTION_TIMEOUT:-120}"
@@ -162,10 +163,20 @@ build_digest() {
     if [ -f "$DM_STATE/unsent" ]; then
         printf -- '- The previous digest could not be e-mailed - check the e-mail settings in amtm (em, se)\n' >> "$DM_ALERTS"
         # Its alerts were never seen: repeat them (the state has already moved on).
+        # Each keeps the date of the digest it first appeared in; alerts already
+        # reported today are not repeated, and none is listed twice.
         when=$(head -1 "$DM_STATE/unsent" | sed -n 's/.* - \([0-9-]*\)$/\1/p')
-        awk '/^=== ALERTS ===$/ {a = 1; next} a && /^$/ {exit} a && /^- / {print}' "$DM_STATE/unsent" \
-            | grep -v "previous digest could not be e-mailed" \
-            | sed "s/^- (not sent on [0-9-]*) /- /; s/^- /- (not sent on ${when:-?}) /" >> "$DM_ALERTS"
+        awk -v when="${when:-?}" -v cur="$DM_ALERTS" '
+            BEGIN { while ((getline l < cur) > 0) { sub(/^- /, "", l); seen[l] = 1 } }
+            /^=== ALERTS ===$/ {a = 1; next}
+            a && /^$/ {exit}
+            a && /^- / {
+                t = substr($0, 3); d = when
+                if (t ~ /^\(not sent on [0-9-]+\) /) { d = substr(t, 14); sub(/\).*/, "", d); sub(/^\(not sent on [0-9-]+\) /, "", t) }
+                if (t ~ /previous digest could not be e-mailed/ || (t in seen)) next
+                seen[t] = 1; print "- (not sent on " d ") " t
+            }' "$DM_STATE/unsent" > "$DM_ALERTS.carry"
+        cat "$DM_ALERTS.carry" >> "$DM_ALERTS"; rm -f "$DM_ALERTS.carry"
     fi
     if [ -s "$DM_ALERTS" ]; then
         tag="ATTENTION"; summary="$(grep -c . "$DM_ALERTS") point(s) need attention - see ALERTS."
@@ -187,9 +198,11 @@ DigestMerlin v$VERSION"
     return 0
 }
 
-# How the digest will be e-mailed: SendEmail, library, or none.
+# How the digest will be e-mailed: SendEmail, library, or none (also "none"
+# when amtm's e-mail settings, option "em", were never saved).
 mail_method() {
-    if [ -s "$SENDEMAIL_SCRIPT" ] && [ -x "$SENDEMAIL" ]; then echo SendEmail
+    if [ ! -s "$AMTM_MAIL_DIR/email.conf" ] || [ ! -s "$AMTM_MAIL_DIR/emailpw.enc" ]; then echo none
+    elif [ -s "$SENDEMAIL_SCRIPT" ] && [ -x "$SENDEMAIL" ]; then echo SendEmail
     elif [ -f "$CEM_LIB" ]; then echo library
     else echo none
     fi
@@ -201,7 +214,11 @@ send_once() {
         SendEmail)
             bodyf="/tmp/digestmerlin-mail.$$"
             printf '%s\n' "$mailbody" > "$bodyf" && chmod 600 "$bodyf"
-            "$SENDEMAIL" -html -quiet -From="DigestMerlin" "$subject" -Body="$bodyf" >/dev/null 2>&1; r=$?
+            # SendEmail puts each argument inside '...' and evaluates the list again:
+            # an apostrophe would break it. A leading "-" would be taken as an option.
+            # </dev/null: SendEmail never waits for a key, even from a terminal.
+            sesubj=$(printf '%s' "$subject" | sed "s/'/’/g; s/^-*//")
+            "$SENDEMAIL" -html -quiet -From="DigestMerlin" "$sesubj" -Body="$bodyf" </dev/null >/dev/null 2>&1; r=$?
             rm -f "$bodyf"
             return "$r" ;;
         library)
@@ -235,7 +252,7 @@ send_digest() {
         if [ "$rc" -eq 0 ]; then
             if [ -n "$DM_TEST" ]; then
                 log "Test digest sent ($tag)"
-                save_last_run "$tag" "sent (test)"
+                save_last_run "$tag" sent
             else
                 log "Daily digest sent ($tag, via $method)"
                 rm -f "$DM_STATE/unsent"
@@ -248,7 +265,7 @@ send_digest() {
         try=$((try + 1))
     done
     if [ -n "$DM_TEST" ]; then
-        save_last_run "$tag" "NOT sent (test)"
+        save_last_run "$tag" "NOT sent"
         log "ERROR: test digest not sent (code $rc)"
         return 1
     fi
@@ -263,8 +280,9 @@ send_digest() {
 
 # Shown in the menu header: "epoch|OK|sent"
 save_last_run() {
+    f=last_run; [ -n "$DM_TEST" ] && f=last_test     # a test never hides the last real digest
     # shellcheck disable=SC2174
-    mkdir -p -m 700 "$DM_STATE" && printf '%s|%s|%s\n' "$(date +%s)" "$1" "$2" > "$DM_STATE/last_run"
+    mkdir -p -m 700 "$DM_STATE" && printf '%s|%s|%s\n' "$(date +%s)" "$1" "$2" > "$DM_STATE/$f"
 }
 
 do_install() {
@@ -511,6 +529,11 @@ menu_header() {
         IFS='|' read -r lts ltag lstat < "$DM_STATE/last_run"
         last="$(date -d "@$lts" '+%a %d %b %H:%M' 2>/dev/null) [$ltag] $lstat"
     fi
+    lasttest=""
+    if [ -f "$DM_STATE/last_test" ]; then
+        IFS='|' read -r tts ttag tstat < "$DM_STATE/last_test"
+        lasttest="$(date -d "@$tts" '+%a %d %b %H:%M' 2>/dev/null) [$ttag] $tstat"
+    fi
     case "$(mail_method)" in
         SendEmail) mail="SendEmail" ;;
         library)   mail="library only - install SendEmail (see below)" ;;
@@ -527,6 +550,7 @@ menu_header() {
     say " ==============================================="
     say "   Daily e-mail : ${t:-not scheduled}"
     say "   Last digest  : $last"
+    [ -n "$lasttest" ] && say "   Last test    : $lasttest"
     say "   E-mail       : $mail"
     say "   Sections     : $((n_all - n_off)) of $n_all enabled"
     [ -n "$CONF_BROKEN" ] && say "   WARNING      : settings file has a syntax error - defaults in use"
@@ -660,7 +684,7 @@ EOF_LINE
                 fi ;;
             bool) case "$val" in 0|1) ;; *) say " Please enter 0 or 1."; pause; continue ;; esac ;;
             text) [ "$val" = "none" ] && val=""
-                  case "$val" in *[\"\\\$\`]*) say ' These characters are not allowed: " \ $ `'; pause; continue ;; esac ;;
+                  case "$val" in *[\"\\\$\`\']*|-*) say ' Not allowed: " \ $ ` and apostrophes, or a leading -'; pause; continue ;; esac ;;
         esac
         conf_set "$key" "$val"
     done
@@ -802,7 +826,7 @@ case "$1" in
         # "amtmupdate" = update now, without any question.
         [ "$2" = "check" ] && exit 0
         do_update ;;
-    uninstall)
+    uninstall|-uninstall)
         if [ "$2" = "-y" ]; then
             do_remove_all
         elif [ -t 0 ]; then
