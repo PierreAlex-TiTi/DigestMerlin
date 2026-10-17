@@ -10,7 +10,7 @@ short summary: what is fine, and what needs a look.
 - **Adapts to your router**: a section whose add-on is not installed is skipped.
 - **Never silent**: a section that fails or hangs is shown as unavailable (it never blocks the
   e-mail), sending is retried 3 times, and an e-mail that could not be sent is reported in the next one.
-- **Uses the e-mail set up in amtm**: no extra password to store.
+- **Uses the e-mail set up in amtm**, sent by Martinski's SendEmail add-on: no extra password to store.
 - **Modular**: one small script per section. Adding a section = dropping a file.
 
 ## Example
@@ -59,7 +59,7 @@ None
 
 Generated 2026-10-12 22:36 - covers the last 24h
 Sections: 6 OK
-DigestMerlin v0.2.0
+DigestMerlin v0.3.0
 ```
 
 When something is wrong, the subject becomes `[ATTENTION]` and the ALERTS section says what, e.g.
@@ -79,7 +79,11 @@ When something is wrong, the subject becomes `[ATTENTION]` and the ALERTS sectio
 ## Requirements
 
 - Asuswrt-Merlin with JFFS custom scripts enabled (tested on 3006; 3004 should work but is untested).
-- E-mail configured in **amtm** (`amtm` → `em`). DigestMerlin uses amtm's shared e-mail library.
+- E-mail configured in **amtm** (`amtm` → `em`).
+- **SendEmail**, Martinski's e-mail add-on, installed from amtm (`amtm` → `se`). It sends the digest
+  and keeps Martinski's Custom Email Library (`CustomEMailFunctions.lib.sh`) up to date.
+  If SendEmail is not installed but the library is already on the router (installed by another
+  add-on), DigestMerlin uses the library directly and the menu recommends installing SendEmail.
 - Entware is recommended (its `find` is used for the world-writable check) but not required.
 
 Tested on an RT-AX86U Pro with Merlin 3006.102.9, Skynet 9.0.5, VPNMON-R3, spdMerlin, BACKUPMON and
@@ -98,7 +102,11 @@ Then open the menu (option 1 previews the digest without sending anything):
 sh /jffs/scripts/digestmerlin.sh
 ```
 
-Running the installer again updates DigestMerlin and keeps your settings, history and schedule.
+If you use IOCMON, it reports DigestMerlin's files, its services-start line and its cron job
+after installing or updating: this is expected.
+
+To update later: menu option 6, `sh /jffs/scripts/digestmerlin.sh update`, or the install command
+again. Your settings, history and schedule are always kept.
 
 ## Usage
 
@@ -117,16 +125,35 @@ sh /jffs/scripts/digestmerlin.sh preview          # build and print the digest (
 sh /jffs/scripts/digestmerlin.sh run              # build and e-mail it
 sh /jffs/scripts/digestmerlin.sh section vpn      # run a single section
 sh /jffs/scripts/digestmerlin.sh install 18:30    # e-mail it every day at 18:30
-sh /jffs/scripts/digestmerlin.sh uninstall        # remove the schedule
+sh /jffs/scripts/digestmerlin.sh unschedule       # stop the daily e-mail (files kept)
+sh /jffs/scripts/digestmerlin.sh update           # update to the latest version
+sh /jffs/scripts/digestmerlin.sh uninstall        # remove DigestMerlin completely
 ```
 
 `install` adds a cron job and one line, marked `# DigestMerlin`, to `/jffs/scripts/services-start`
-so the schedule survives reboots. `uninstall` removes both.
+so the schedule survives reboots. `unschedule` removes both.
 
 The first `run` records the devices currently on your LAN. Devices that were offline at
 that moment (a TV, a printer, a console...) are reported once when they reconnect during
 the following days: a good way to review everything connected to your network.
 After that, only devices never seen before are reported.
+
+## If no e-mail arrives
+
+1. Open the menu and look at the `E-mail` line of the header:
+   - `NOT set up`: exit the menu, type `amtm`, choose `em` and enter your e-mail settings
+     (server, address, password), then choose `se` to install SendEmail;
+   - `library only`: e-mail works, but install SendEmail (`amtm` → `se`) to keep it up to date;
+   - `SendEmail`: all set.
+
+   Sent through SendEmail, the digest shows **DigestMerlin** as the sender name; through the library
+   alone, it shows the sender name set in amtm (`em`). Keep that in mind for mail filters.
+2. Back in the DigestMerlin menu, use option 2 to send a test digest. If it says `NOT sent`,
+   check the e-mail settings in amtm again (an expired app password is a common cause).
+   SendEmail can also send its own test: `/jffs/scripts/SendEmail -test`.
+3. Check that the daily e-mail is scheduled (header: `Daily e-mail : HH:MM`, otherwise option 3).
+
+A digest that could not be sent is reported at the top of the next one.
 
 ## Settings
 
@@ -198,13 +225,15 @@ a timeout), `fmt_age`, `fmt_time`, and `state_get` / `state_set` to remember a v
 
 ## Uninstall
 
-Menu option 7 removes everything (schedule, settings, history, files). Or by hand:
+Menu option 7, or:
 
 ```sh
 sh /jffs/scripts/digestmerlin.sh uninstall
-rm -rf /jffs/addons/digestmerlin.d /jffs/scripts/digestmerlin.sh
 ```
+
+Both ask first, then remove everything: schedule, settings, history and files.
 
 ## License
 
-GPL-3.0. Thanks to the authors of the add-ons DigestMerlin reads, and to amtm for the shared e-mail library.
+GPL-3.0. Thanks to the authors of the add-ons DigestMerlin reads, to Martinski for SendEmail and the
+Custom Email Library, and to thelonelycoder for amtm.

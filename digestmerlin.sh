@@ -1,7 +1,7 @@
 #!/bin/sh
 # shellcheck disable=SC2034
 version=0.3.0
-VERSION="0.3.0-test8"
+VERSION="0.3.0-test9"
 # Both lines above carry the same number: amtm reads the first, menus of
 # v0.2.0 read the second. Keep them on top, before any other mention.
 #
