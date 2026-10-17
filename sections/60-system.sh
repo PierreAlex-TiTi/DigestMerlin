@@ -78,6 +78,8 @@ if [ -n "$FIND" ]; then
     {
         "$FIND" /jffs/scripts -perm -o+w ! -type l 2>/dev/null
         "$FIND" /jffs/addons /jffs/configs -perm -o+w -type f \( -perm -u+x -o -name '*.sh' \) 2>/dev/null
+        # amtm loads (runs) its own files as root: modules (.mod), settings, email.conf...
+        "$FIND" /jffs/addons/amtm -perm -o+w -type f 2>/dev/null
     } | sort -u > "$tmp.scripts"
     "$FIND" /jffs/addons /jffs/configs -perm -o+w ! -type l 2>/dev/null \
         | awk -v f="$tmp.scripts" 'BEGIN {while ((getline l < f) > 0) s[l]} !($0 in s)' > "$tmp.data"
