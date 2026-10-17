@@ -19,8 +19,23 @@ WINDOW_H="${WINDOW_H:-24}"
 SINCE="${SINCE:-$((NOW - WINDOW_H * 3600))}"
 
 # User settings (all optional, see digestmerlin.conf.sample).
+# A settings file with a syntax error is ignored (defaults are used): the main
+# script reports it in the digest.
 # shellcheck disable=SC1090
-[ -f "$DM_CONF" ] && . "$DM_CONF"
+[ -f "$DM_CONF" ] && sh -n "$DM_CONF" 2>/dev/null && ( . "$DM_CONF" ) >/dev/null 2>&1 && . "$DM_CONF"
+
+# Syslog dates are read with "date -D", which only BusyBox's date has. Entware
+# can put GNU date first in PATH (coreutils-date): fall back to BusyBox's own.
+# pdate FORMAT TEXT -> seconds since 1970 (fails if the text does not match)
+if date -D "%Y" -d "2000" +%Y >/dev/null 2>&1; then
+    pdate() { date -D "$1" -d "$2" +%s 2>/dev/null; }
+elif busybox date -D "%Y" -d "2000" +%Y >/dev/null 2>&1; then
+    pdate() { busybox date -D "$1" -d "$2" +%s 2>/dev/null; }
+elif /bin/date -D "%Y" -d "2000" +%Y >/dev/null 2>&1; then
+    pdate() { /bin/date -D "$1" -d "$2" +%s 2>/dev/null; }
+else
+    pdate() { return 1; }
+fi
 
 # Previous log first, then current: covers as much of the window as possible.
 read_logs() {
@@ -33,7 +48,12 @@ in_window() {
     while IFS= read -r line; do
         [ -n "$line" ] || continue
         set -f; set -- $line; set +f
-        ts=$(date -D "%b %e %H:%M:%S" -d "$1 $2 $3" +%s 2>/dev/null) || continue
+        ts=$(pdate "%b %e %H:%M:%S" "$1 $2 $3") || continue
+        # Syslog lines carry no year: a "Dec 31" line read on Jan 1 belongs to
+        # last year. Re-read it with last year's number (leap years included).
+        if [ "$ts" -gt $((NOW + 86400)) ]; then
+            ts=$(pdate "%Y %b %e %H:%M:%S" "$(($(date +%Y) - 1)) $1 $2 $3") || continue
+        fi
         [ "$ts" -ge "$SINCE" ] && [ "$ts" -le "$NOW" ] && printf '%s\n' "$line"
     done
 }

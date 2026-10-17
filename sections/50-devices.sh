@@ -7,7 +7,9 @@ DEVICES_IGNORE_PRIVATE_MAC="${DEVICES_IGNORE_PRIVATE_MAC:-0}"
 [ -f "$LEASES" ] || exit 3
 
 known="$DM_STATE/known_macs"
-current=$(awk '{print tolower($2), $3, $4}' "$LEASES" | sort -u)
+# IPv4 leases only (IPv6 lines and the "duid" line carry no MAC), one line per MAC.
+current=$(awk 'tolower($2) ~ /^[0-9a-f][0-9a-f](:[0-9a-f][0-9a-f])(:[0-9a-f][0-9a-f])(:[0-9a-f][0-9a-f])(:[0-9a-f][0-9a-f])(:[0-9a-f][0-9a-f])$/ {
+                   m = tolower($2); if (!(m in seen)) {seen[m] = 1; print m, $3, $4}}' "$LEASES" | sort)
 n_now=$(printf '%s\n' "$current" | grep -c .)
 
 if [ ! -f "$known" ]; then

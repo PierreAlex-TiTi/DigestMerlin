@@ -10,10 +10,14 @@ CPU_TEMP_ALERT="${CPU_TEMP_ALERT:-}"     # empty = no temperature alert
 fw="$(nv firmver | tr -d '.').$(nv buildno)_$(nv extendno)"
 echo "Firmware: $fw ($(nv productid))"
 prev=$(state_get firmware)
-if [ -n "$prev" ] && [ "$prev" != "$fw" ]; then
-    add_alert "System: firmware changed from $prev to $fw"
-fi
-state_set firmware "$fw"
+case "$fw" in
+    [0-9]*.[0-9]*_?*)   # a real version, e.g. 3006.102.9_0 (not "3006.102.9_")
+        if [ -n "$prev" ] && [ "$prev" != "$fw" ]; then
+            add_alert "System: firmware changed from $prev to $fw"
+        fi
+        state_set firmware "$fw" ;;
+    *)  ;;              # nvram did not answer: no comparison, nothing saved
+esac
 
 # MerlinAU (optional): a new firmware waiting for its postponement period.
 mau="/jffs/addons/MerlinAU.d/custom_settings.txt"
