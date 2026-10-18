@@ -7,7 +7,9 @@ DEVICES_IGNORE_PRIVATE_MAC="${DEVICES_IGNORE_PRIVATE_MAC:-0}"
 [ -f "$LEASES" ] || exit 3
 
 known="$DM_STATE/known_macs"
-current=$(awk '{print tolower($2), $3, $4}' "$LEASES" | sort -u)
+# IPv4 leases only (IPv6 lines and the "duid" line carry no MAC), one line per MAC.
+current=$(awk 'tolower($2) ~ /^[0-9a-f][0-9a-f](:[0-9a-f][0-9a-f])(:[0-9a-f][0-9a-f])(:[0-9a-f][0-9a-f])(:[0-9a-f][0-9a-f])(:[0-9a-f][0-9a-f])$/ {
+                   m = tolower($2); if (!(m in seen)) {seen[m] = 1; print m, $3, $4}}' "$LEASES" | sort)
 n_now=$(printf '%s\n' "$current" | grep -c .)
 
 if [ ! -f "$known" ]; then
@@ -22,7 +24,7 @@ if [ ! -f "$known" ]; then
     exit 0
 fi
 
-new=""
+new=""; names=""
 while read -r mac ip name; do
     [ -n "$mac" ] || continue
     grep -qx "$mac" "$known" && continue
@@ -34,6 +36,7 @@ while read -r mac ip name; do
     [ "$name" = "*" ] && name="no name"
     new="${new}  $mac  $ip  ${name:-no name}$priv
 "
+    names="${names}${names:+, }$mac (${name:-no name})"
 done <<EOF
 $current
 EOF
@@ -42,7 +45,9 @@ if [ -n "$new" ]; then
     n_new=$(printf '%s' "$new" | grep -c .)
     echo "New device(s) since the last digest: $n_new"
     printf '%s' "$new"
-    add_alert "Network: $n_new new device(s) on the LAN - see New devices"
+    # The alert names the devices: if this digest cannot be sent, the alert is
+    # repeated in the next one, while this section will no longer list them.
+    add_alert "Network: $n_new new device(s) on the LAN: $names"
     if [ -z "$DM_PREVIEW" ]; then
         printf '%s' "$new" | awk '{print $1}' >> "$known"
     fi

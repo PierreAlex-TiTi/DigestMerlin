@@ -1,5 +1,49 @@
 # Changelog
 
+## v0.3.0 - 2026-10-18
+- amtm-ready: `version=` line, `setup` installs everything from the main script alone,
+  `amtmupdate` / `amtmupdate check` for amtm's automatic updates.
+- New commands: `update` (latest version, settings kept), `unschedule` (stop the daily e-mail).
+- `uninstall` now removes DigestMerlin completely (asks first; `uninstall -y` without question).
+  To only stop the daily e-mail, use `unschedule`.
+- Menu: clearer settings screens (explanation, example, current and default value).
+  Values are checked against sensible ranges (e.g. CPU 40-125C) to catch typos.
+- Updates replace files safely (written next to the old one, then renamed) and never touch
+  your settings or history. A failed download changes nothing.
+- Robustness (found by an independent review):
+  - a settings file with an error no longer stops the e-mail, update or uninstall: defaults
+    are used and the digest says so;
+  - saving a setting on a full /jffs can no longer empty the settings file;
+  - the schedule line is never glued to another add-on's line in services-start;
+  - no more "[OK] All green" when no section ran (missing files, all disabled, interrupted run);
+  - an nvram read that times out no longer raises a false "firmware changed" alert;
+  - new devices: IPv6 lease lines and duplicate MACs are ignored;
+  - syslog lines of Dec 31 are counted correctly on Jan 1;
+  - sections dropped by a future version are removed on update (your own sections are kept).
+  - syslog dates are read correctly even when Entware's GNU date (coreutils-date) is installed;
+  - a test e-mail from the menu no longer changes the history (known devices...), so the
+    next scheduled digest still reports everything;
+  - alerts of a digest that could not be sent are repeated in the next one;
+  - a section that hangs is stopped together with the programs it started;
+  - an update interrupted half-way is reported as such (run it again).
+- E-mail is sent through Martinski's SendEmail add-on (install it from amtm: `se`), as he
+  suggested. If SendEmail is missing but the Custom Email Library is already on the router, it is
+  used directly and the menu recommends SendEmail. (Earlier versions wrongly called the library
+  "amtm's shared e-mail library": it is not part of amtm.)
+  With SendEmail, the sender name is "DigestMerlin", and the subject prefix is made safe for it
+  (apostrophes, a leading "-" or a "Word=" start are adjusted; the menu refuses them).
+  E-mail counts as set up only when amtm's e-mail settings exist.
+- A digest that cannot be sent, for any reason (e-mail not set up, server error...), is kept and
+  its alerts are repeated in the next e-mail, each with the date it was first raised.
+- The new-device alert names the devices (MAC and name).
+- Menu: a test e-mail is shown on its own line ("Last test") and never hides the last real digest.
+- SYSTEM: a file in amtm's folder that anyone can modify raises an alert. amtm runs these files as
+  root (its modules, settings, email.conf); amtm re-creates them on its updates, so the alert gives
+  the command to run again.
+- "install" reads times like 008:09 correctly.
+- E-mail: "<", ">" and "&" are escaped, so the digest displays fully in every mail client
+  (Outlook could hide everything after "handshake <1m ago").
+
 ## v0.2.0 - 2026-10-16
 - Menu: run `sh /jffs/scripts/digestmerlin.sh` with no argument. Preview, send a test e-mail,
   change the send time, enable/disable sections, alert thresholds and settings, check for

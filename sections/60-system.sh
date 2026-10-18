@@ -10,10 +10,14 @@ CPU_TEMP_ALERT="${CPU_TEMP_ALERT:-}"     # empty = no temperature alert
 fw="$(nv firmver | tr -d '.').$(nv buildno)_$(nv extendno)"
 echo "Firmware: $fw ($(nv productid))"
 prev=$(state_get firmware)
-if [ -n "$prev" ] && [ "$prev" != "$fw" ]; then
-    add_alert "System: firmware changed from $prev to $fw"
-fi
-state_set firmware "$fw"
+case "$fw" in
+    [0-9]*.[0-9]*_?*)   # a real version, e.g. 3006.102.9_0 (not "3006.102.9_")
+        if [ -n "$prev" ] && [ "$prev" != "$fw" ]; then
+            add_alert "System: firmware changed from $prev to $fw"
+        fi
+        state_set firmware "$fw" ;;
+    *)  ;;              # nvram did not answer: no comparison, nothing saved
+esac
 
 # MerlinAU (optional): a new firmware waiting for its postponement period.
 mau="/jffs/addons/MerlinAU.d/custom_settings.txt"
@@ -74,6 +78,8 @@ if [ -n "$FIND" ]; then
     {
         "$FIND" /jffs/scripts -perm -o+w ! -type l 2>/dev/null
         "$FIND" /jffs/addons /jffs/configs -perm -o+w -type f \( -perm -u+x -o -name '*.sh' \) 2>/dev/null
+        # amtm loads (runs) its own files as root: modules (.mod), settings, email.conf...
+        "$FIND" /jffs/addons/amtm -perm -o+w -type f 2>/dev/null
     } | sort -u > "$tmp.scripts"
     "$FIND" /jffs/addons /jffs/configs -perm -o+w ! -type l 2>/dev/null \
         | awk -v f="$tmp.scripts" 'BEGIN {while ((getline l < f) > 0) s[l]} !($0 in s)' > "$tmp.data"
@@ -81,7 +87,12 @@ if [ -n "$FIND" ]; then
     n_d=$(grep -c . "$tmp.data")
     if [ "$n_s" -gt 0 ]; then
         echo "Scripts writable by anyone: $n_s"
-        add_alert "System: $n_s script(s) writable by anyone - they run as root (e.g. $(head -1 "$tmp.scripts")) - fix with chmod o-w"
+        if grep -qv '^/jffs/addons/amtm/' "$tmp.scripts"; then
+            add_alert "System: $n_s script(s) writable by anyone - they run as root (e.g. $(grep -v '^/jffs/addons/amtm/' "$tmp.scripts" | head -1)) - fix with chmod o-w"
+        else
+            # amtm writes its files with the umask of the shell it runs in (often 000)
+            add_alert "System: $n_s amtm file(s) writable by anyone - amtm runs them as root - fix with: chmod -R o-w /jffs/addons/amtm (needed again after amtm updates)"
+        fi
     else
         echo "Scripts writable by anyone: 0"
     fi

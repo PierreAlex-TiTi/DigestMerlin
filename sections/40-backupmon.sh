@@ -15,7 +15,7 @@ fi
 # "Oct 12 2026 04:00:15 host BACKUPMON[pid] - INFO: Finished backing up NVRAM to ..."
 log_ts() {
     set -f; set -- $1; set +f
-    date -D "%b %d %Y %H:%M:%S" -d "$1 $2 $3 $4" +%s 2>/dev/null
+    pdate "%b %d %Y %H:%M:%S" "$1 $2 $3 $4"
 }
 
 for what in NVRAM JFFS "EXT Drive"; do

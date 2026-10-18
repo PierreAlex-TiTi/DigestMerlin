@@ -74,7 +74,7 @@ if [ -f "$VR3" ]; then
     if [ -f "$VR3LOG" ]; then
         restarts=$(tail -1000 "$VR3LOG" | grep "Connection Restarted" | while IFS= read -r l; do
             set -f; set -- $l; set +f
-            t=$(date -D "%b %d %Y %H:%M:%S" -d "$1 $2 $3 $4" +%s 2>/dev/null) || continue
+            t=$(pdate "%b %d %Y %H:%M:%S" "$1 $2 $3 $4") || continue
             [ "$t" -ge "$SINCE" ] && [ "$t" -le "$NOW" ] || continue
             slot=$(printf '%s\n' "$l" | sed -n 's/.*INFO: \([^ ]*\) Connection Restarted.*/\1/p')
             srv=$(printf '%s\n' "$l" | sed -n 's/.* Server: //p')
