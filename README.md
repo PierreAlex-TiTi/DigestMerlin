@@ -75,13 +75,13 @@ When something is wrong, the subject becomes `[ATTENTION]` and the ALERTS sectio
 
 | Section | Needs | Reports | Alerts when |
 |---|---|---|---|
-| Skynet | Skynet (v9 for traffic counts) | blacklist size, last list refresh, download failures, blocked inbound/outbound traffic | blacklist not loaded or halved since yesterday, lists not refreshed on schedule, download failures, log collection stalled |
-| Diversion | Diversion | version and status, blocking list size and whether dnsmasq loads it, last list update, ads blocked this week (Diversion's daily count) | Diversion disabled or ad blocking off, list missing, empty, not loaded or halved since the last digest, list not updated on its weekly schedule, Diversion's files on the USB drive missing |
-| VPN | WireGuard and/or OpenVPN clients; VPNMON-R3 optional | each enabled WireGuard client (endpoint, last handshake), each active OpenVPN client, VPNMON-R3 restarts | interface down, no handshake for 10 min, OpenVPN error or stopped while set to start with WAN, VPNMON-R3 not running |
-| Speed tests | spdMerlin | latest result per interface | no new result for 25 h, failed tests |
-| Backups | BACKUPMON | last NVRAM / JFFS / USB backup | last NVRAM backup older than 26 h, BACKUPMON errors |
+| Skynet | Skynet (v9 for traffic counts) | blacklist size, last list refresh, download failures, blocked inbound/outbound traffic | blacklist not loaded or halved since the last digest, lists not refreshed on schedule, download failures, log collection stalled |
+| Diversion | Diversion | version and status, blocking list size and whether dnsmasq loads it, last list update, ads blocked this week (Diversion's daily count; right after its weekly reset, last week's total) | Diversion disabled or ad blocking off, list missing, empty, not loaded or halved since the last digest, list not updated on its weekly schedule, Diversion's files on the USB drive missing |
+| VPN | WireGuard and/or OpenVPN clients; VPNMON-R3 optional | each enabled WireGuard client (endpoint, last handshake), each active OpenVPN client, VPNMON-R3 restarts | interface down, no handshake for 10 min (setting) or never, OpenVPN error, still connecting, connected without its interface, or stopped while set to start with WAN, VPNMON-R3 not running |
+| Speed tests | spdMerlin | latest result per interface | no new result for 25 h (interfaces excluded from automatic tests in spdMerlin are shown, never alerted), failed tests |
+| Backups | BACKUPMON | last NVRAM / JFFS / EXT Drive (USB) backup | no BACKUPMON log or no completed NVRAM backup, last NVRAM backup older than 26 h, BACKUPMON errors |
 | New devices | DHCP (dnsmasq) | MAC addresses never seen before | a new device joined the LAN |
-| System | — | firmware (and pending MerlinAU update), uptime, load, memory, temperature, storage, files writable by anyone in /jffs | firmware changed, disk almost full, a script writable by anyone, CPU temperature (optional) |
+| System | — | firmware (and pending MerlinAU update), uptime, load, memory, temperature, storage, files writable by anyone in /jffs | firmware changed, disk almost full, a script writable by anyone, CPU temperature (optional), no reboot for too long (optional) |
 
 ## Requirements
 
@@ -179,7 +179,7 @@ The easiest way to change them is the menu: option 4 for the sections, option 5 
 | `DEVICES_IGNORE_PRIVATE_MAC` | 5.7 | 0 | `1` = do not report devices using a random "private" MAC address (phones, laptops). |
 | `SUBJECT_PREFIX` | 5.8 | (none) | Text added in front of the e-mail subject. See below. |
 
-**Why two alerts are off by default.** The temperature is always shown in the SYSTEM section,
+**Why two alerts are off by default.** The temperature is shown in the SYSTEM section when the router reports it (no temperature shown means no temperature alert is possible),
 but what is normal depends on the model: around 65C on some routers, 80C or more on others. A fixed
 limit would send useless alerts to many users, so you choose it: about 10C above your usual value
 is a good start. Same for reboots: many routers are never rebooted on purpose. If yours reboots on a
@@ -198,6 +198,8 @@ cp /jffs/addons/digestmerlin.d/digestmerlin.conf.sample /jffs/addons/digestmerli
 nano /jffs/addons/digestmerlin.d/digestmerlin.conf    # or vi (nano: opkg install nano)
 ```
 
+Number settings must be plain numbers (`90`, not `90%`): any other value is ignored, its default is used
+and the digest says so.
 Check the effect with menu option 1 (or `sh /jffs/scripts/digestmerlin.sh preview`).
 Your settings are kept when you update DigestMerlin.
 
