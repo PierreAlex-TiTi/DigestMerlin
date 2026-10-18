@@ -1,7 +1,7 @@
 #!/bin/sh
 # shellcheck disable=SC2034
-version=0.3.0
-VERSION="0.3.0"
+version=0.4.0
+VERSION="0.4.0-test2"
 # Both lines above carry the same release number (a test build adds "-testN"
 # to the second only): amtm reads the first, menus of v0.2.0 read the second. Keep them on top, before any other mention.
 #
@@ -24,7 +24,10 @@ VERSION="0.3.0"
 # the e-mail: it is reported as unavailable.
 
 REPO="${DM_REPO:-https://raw.githubusercontent.com/PierreAlex-TiTi/DigestMerlin/main}"
-SECTION_FILES="lib.sh 10-skynet.sh 20-vpn.sh 30-speedtest.sh 40-backupmon.sh 50-devices.sh 60-system.sh"
+SECTION_FILES="lib.sh 10-skynet.sh 20-diversion.sh 30-vpn.sh 40-speedtest.sh 50-backupmon.sh 60-devices.sh 70-system.sh"
+# Sections renamed in v0.4.0 ("old name|title"): removed on install or update,
+# also for versions that kept no file list (v0.2.0 and older).
+LEGACY_SECTIONS="20-vpn.sh|VPN 30-speedtest.sh|SPEED TESTS (spdMerlin) 40-backupmon.sh|BACKUPS (BACKUPMON) 50-devices.sh|NEW DEVICES 60-system.sh|SYSTEM"
 SCRIPT_PATH="/jffs/scripts/digestmerlin.sh"
 DM_DIR="${DM_DIR:-/jffs/addons/digestmerlin.d}"
 SECTIONS_DIR="${SECTIONS_DIR:-$DM_DIR/sections}"
@@ -88,7 +91,7 @@ kill_tree() {
     kill -"$2" "$1" 2>/dev/null
 }
 
-section_name() {   # 20-vpn.sh -> vpn
+section_name() {   # 30-vpn.sh -> vpn
     n=$(basename "$1" .sh)
     echo "${n#[0-9][0-9]-}"
 }
@@ -343,16 +346,39 @@ do_remove_all() {
 files_complete() {
     [ -f "$SCRIPT_PATH" ] && [ -f "$SECTIONS_DIR/lib.sh" ] || return 1
     [ -n "$(ls "$SECTIONS_DIR"/[0-9][0-9]-*.sh 2>/dev/null)" ] || return 1
-    [ -f "$DM_DIR/.files" ] || return 0
-    for f in $(cat "$DM_DIR/.files"); do
+    # The list of THIS version (an interrupted update can leave an older .files).
+    for f in $SECTION_FILES; do
         [ -f "$SECTIONS_DIR/$f" ] || return 1
+    done
+    # A section renamed in v0.4.0 still there (update interrupted): reinstall.
+    [ -z "$(legacy_left)" ]
+}
+
+# Old section files (renamed in v0.4.0) still present with our own title.
+legacy_left() {
+    printf '%s\n' "$LEGACY_SECTIONS" | sed 's/ \([0-9][0-9]-\)/\n\1/g' | while IFS='|' read -r f title; do
+        [ -n "$f" ] && [ -f "$SECTIONS_DIR/$f" ] || continue
+        [ "$(sed -n 2p "$SECTIONS_DIR/$f")" = "# TITLE: $title" ] && echo "$f"
     done
 }
 
 # Latest version number published on GitHub (empty if unreachable).
+# VERSION= is read first: a test build carries its "-testN" there only.
 remote_version() {
-    curl -fsSL --max-time 20 "$REPO/digestmerlin.sh" 2>/dev/null \
-        | sed -n 's/^version=\([0-9][0-9.]*\)$/\1/p; s/^VERSION="\([0-9][0-9.]*\)"$/\1/p' | head -1
+    r=$(curl -fsSL --max-time 20 "$REPO/digestmerlin.sh" 2>/dev/null) || return 0
+    v=$(printf '%s\n' "$r" | sed -n 's/^VERSION="\([0-9][0-9.]*\(-[A-Za-z0-9]*\)\{0,1\}\)"$/\1/p' | head -1)
+    [ -n "$v" ] || v=$(printf '%s\n' "$r" | sed -n 's/^version=\([0-9][0-9.]*\)$/\1/p' | head -1)
+    echo "$v"
+}
+
+# Remove the sections renamed in v0.4.0, but only a file that still carries
+# our own title on line 2: a section you wrote yourself is never touched.
+# $1: the section files of the version just installed.
+remove_legacy_sections() {
+    for f in $(legacy_left); do
+        case " $1 " in *" $f "*) ;; *) rm -f "$SECTIONS_DIR/$f" ;; esac
+    done
+    return 0
 }
 
 # Download all files into $1. Returns 1 on any failure. The list of sections
@@ -410,6 +436,7 @@ $DM_DIR/sections/$f|$1/sections/$f"
             case " $files " in *" $f "*) ;; *) case "$f" in */*|'') ;; *) rm -f "$DM_DIR/sections/$f" ;; esac ;; esac
         done
     fi
+    [ "$ok" = "1" ] && remove_legacy_sections "$files"
     [ "$ok" = "1" ] && printf '%s\n' "$files" > "$DM_DIR/.files"
     chmod 700 "$DM_DIR"
     chmod 755 "$DM_DIR/sections" "$SCRIPT_PATH" "$DM_DIR"/sections/*.sh
@@ -711,7 +738,6 @@ setting_range() {
     esac
 }
 
-# 1 if version $1 is newer than $2 (numbers separated by dots)
 # True if version $1 is newer than $2. A test build ("0.3.0-test9") is older
 # than the release with the same number ("0.3.0").
 is_newer() {
@@ -740,7 +766,7 @@ menu_update() {
                 fi ;;
         esac
     elif ! files_complete; then
-        printf ' You have the latest version, but some files are missing. Reinstall them now? [y/N] '
+        printf ' You have the latest version, but some files are missing or out of date. Reinstall them now? [y/N] '
         read -r ans || exit 0
         case "$ans" in y|Y) do_update ;; esac
     else

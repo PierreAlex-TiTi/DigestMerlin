@@ -2,7 +2,7 @@
 
 **One daily e-mail with the health of your Asuswrt-Merlin router and its add-ons.**
 
-Each add-on (Skynet, VPNMON-R3, spdMerlin, BACKUPMON, MerlinAU...) watches its own corner and
+Each add-on (Skynet, Diversion, VPNMON-R3, spdMerlin, BACKUPMON, MerlinAU...) watches its own corner and
 sends its own alerts, or none at all. DigestMerlin reads them all once a day and sends a single,
 short summary: what is fine, and what needs a look.
 
@@ -26,6 +26,12 @@ Blacklist: 42470 IPs | 2779 ranges
 List refresh: Mon 12 Oct 11:25 (11h11m ago, daily)
 Download failures (24h): 0
 Blocked inbound (24h): 0 | outbound: 0
+
+=== DIVERSION (ad blocking) ===
+Diversion 6.1.1: enabled | ad blocking on
+Blocking list: 56735 domains (Standard) - loaded by dnsmasq
+List update: Thu 08 Oct 02:10 (4d20h ago, weekly on Thursday)
+Ads blocked: 2,165 in the last count, 8,896 this week (Mon 12 Oct 17:20)
 
 === VPN ===
 WGC1 (FR server): UP | 203.0.113.10:51820 | handshake <1m ago
@@ -58,8 +64,8 @@ Scripts writable by anyone: 0
 None
 
 Generated 2026-10-12 22:36 - covers the last 24h
-Sections: 6 OK
-DigestMerlin v0.3.0
+Sections: 7 OK
+DigestMerlin v0.4.0
 ```
 
 When something is wrong, the subject becomes `[ATTENTION]` and the ALERTS section says what, e.g.
@@ -70,11 +76,12 @@ When something is wrong, the subject becomes `[ATTENTION]` and the ALERTS sectio
 | Section | Needs | Reports | Alerts when |
 |---|---|---|---|
 | Skynet | Skynet (v9 for traffic counts) | blacklist size, last list refresh, download failures, blocked inbound/outbound traffic | blacklist not loaded or halved since yesterday, lists not refreshed on schedule, download failures, log collection stalled |
+| Diversion | Diversion | version and status, blocking list size and whether dnsmasq loads it, last list update, ads blocked (Diversion's daily count) | Diversion disabled or ad blocking off, list missing, empty, not loaded or halved since the last digest, list not updated on its weekly schedule, Diversion's files on the USB drive missing |
 | VPN | WireGuard and/or OpenVPN clients; VPNMON-R3 optional | each enabled WireGuard client (endpoint, last handshake), each active OpenVPN client, VPNMON-R3 restarts | interface down, no handshake for 10 min, OpenVPN error or stopped while set to start with WAN, VPNMON-R3 not running |
 | Speed tests | spdMerlin | latest result per interface | no new result for 25 h, failed tests |
 | Backups | BACKUPMON | last NVRAM / JFFS / USB backup | last NVRAM backup older than 26 h, BACKUPMON errors |
 | New devices | DHCP (dnsmasq) | MAC addresses never seen before | a new device joined the LAN |
-| System | — | firmware (and pending MerlinAU update), uptime, load, memory, temperature, storage, files writable by anyone in /jffs | firmware changed, disk almost full, a script (or an amtm file) writable by anyone, CPU temperature (optional) |
+| System | — | firmware (and pending MerlinAU update), uptime, load, memory, temperature, storage, files writable by anyone in /jffs | firmware changed, disk almost full, a script writable by anyone, CPU temperature (optional) |
 
 ## Requirements
 
@@ -87,7 +94,7 @@ When something is wrong, the subject becomes `[ATTENTION]` and the ALERTS sectio
 - Entware is recommended (its `find` is used for the world-writable check) but not required.
 
 Tested on an RT-AX86U Pro with Merlin 3006.102.9, Skynet 9.0.5, VPNMON-R3, spdMerlin, BACKUPMON and
-MerlinAU 1.7.1, with WireGuard clients. Also reported working on an RT-BE88U. The OpenVPN checks have
+MerlinAU 1.7.1, with WireGuard clients. Also reported working on an RT-BE88U and an RT-AX86U. The OpenVPN checks have
 only been tested on a simulated router so far: reports from OpenVPN users and other models are welcome.
 
 ## Install / update

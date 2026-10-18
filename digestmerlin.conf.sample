@@ -2,7 +2,7 @@
 # Every line is optional: the values below are the defaults.
 # To edit by hand: copy to /jffs/addons/digestmerlin.d/digestmerlin.conf
 
-# Sections to leave out, by name (skynet vpn speedtest backupmon devices system)
+# Sections to leave out, by name (skynet diversion vpn speedtest backupmon devices system)
 DISABLED_SECTIONS=""
 
 # Text added in front of the e-mail subject, e.g. "[Home] "

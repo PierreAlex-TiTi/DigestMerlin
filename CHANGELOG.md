@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.4.0 - (in test)
+- New section: **Diversion** (ad blocking). Shows its version and status, the size of the blocking
+  list and whether dnsmasq loads it, the last list update and the ads blocked (Diversion's daily
+  count). Alerts when Diversion or ad blocking is off, when the list is missing, empty, not loaded or
+  halved since the last digest, when the list misses its weekly update, and when Diversion's files on
+  the USB drive cannot be found.
+- Sections renumbered to make room for it: 10 Skynet, 20 Diversion, 30 VPN, 40 speed tests,
+  50 BACKUPMON, 60 new devices, 70 system. Settings (disabled sections...) are kept: they use the
+  names, not the numbers. The old files are removed on update, also when updating from v0.2.0;
+  a section you wrote yourself is never removed.
+- SYSTEM: amtm's own files that anyone can modify are now only reported on their own line, not
+  alerted: amtm re-creates them on each update, and its author considers this harmless on a
+  single-user router.
+
 ## v0.3.0 - 2026-10-18
 - amtm-ready: `version=` line, `setup` installs everything from the main script alone,
   `amtmupdate` / `amtmupdate check` for amtm's automatic updates.
