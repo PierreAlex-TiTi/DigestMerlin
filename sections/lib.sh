@@ -19,27 +19,10 @@ WINDOW_H="${WINDOW_H:-24}"
 SINCE="${SINCE:-$((NOW - WINDOW_H * 3600))}"
 
 # User settings (all optional, see digestmerlin.conf.sample).
-# A settings file with a syntax error is ignored (defaults are used); Windows
-# line endings are tolerated; a number setting that is not a plain number is
-# ignored (its default is used). The main script reports both in the digest.
-DM_NUM_SETTINGS="WG_HANDSHAKE_MAX SPEEDTEST_MAX_AGE_H BACKUP_MAX_AGE_H DISK_ALERT_PCT CPU_TEMP_ALERT REBOOT_MAX_DAYS DEVICES_IGNORE_PRIVATE_MAC"
-if [ -f "$DM_CONF" ]; then
-    _f="$DM_CONF"
-    if grep -q "$(printf '\r')" "$DM_CONF" 2>/dev/null; then
-        _f="/tmp/digestmerlin-conf.$$"; tr -d '\r' < "$DM_CONF" > "$_f" 2>/dev/null || _f=""
-    fi
-    # shellcheck disable=SC1090
-    [ -n "$_f" ] && sh -n "$_f" 2>/dev/null && ( . "$_f" ) >/dev/null 2>&1 && . "$_f"
-    [ "$_f" = "$DM_CONF" ] || rm -f "$_f"
-    for _k in $DM_NUM_SETTINGS; do
-        eval "_v=\${$_k}"
-        [ -n "$_v" ] || continue
-        _v=$(echo "$_v" | sed 's/^0*\([0-9]\)/\1/')       # "08" -> "8", never octal
-        case "$_v" in *[!0-9]*) unset "$_k"; continue ;; esac
-        [ ${#_v} -le 6 ] || { unset "$_k"; continue; }
-        eval "$_k=\$_v"
-    done
-fi
+# A settings file with a syntax error is ignored (defaults are used): the main
+# script reports it in the digest.
+# shellcheck disable=SC1090
+[ -f "$DM_CONF" ] && sh -n "$DM_CONF" 2>/dev/null && ( . "$DM_CONF" ) >/dev/null 2>&1 && . "$DM_CONF"
 
 # Syslog dates are read with "date -D", which only BusyBox's date has. Entware
 # can put GNU date first in PATH (coreutils-date): fall back to BusyBox's own.
