@@ -86,17 +86,18 @@ else
     echo "List update: never recorded ($sched)"
 fi
 
-# Ads counter, written to syslog by Diversion (daily, reset weekly).
+# Ads counter, written to syslog by Diversion (daily, reset weekly). Only the
+# weekly figure is shown: it follows the "total" exactly, while "new since last
+# count" does not count the ads blocked since the previous line.
 c=$(read_logs | grep 'Diversion: updated.*ads counter: ' | tail -1)
 if [ -n "$c" ]; then
     cts=$(ts_of "$c")
-    nums=$(printf '%s\n' "$c" | sed -n 's/.*ads counter: \([0-9,]*\) total, \([0-9,]*\) this week, \([0-9,]*\) new since last count.*/\2 \3/p')
-    if [ -n "$nums" ]; then
-        set -- $nums
-        when=""; is_number "$cts" && when=" ($(fmt_time "$cts"))"
+    week=$(printf '%s\n' "$c" | sed -n 's/.*ads counter: [0-9,]* total, \([0-9,]*\) this week,.*/\1/p')
+    if [ -n "$week" ]; then
+        when=""; is_number "$cts" && when=" (counted $(fmt_time "$cts"))"
         # The weekly reset line carries the total of the week that just ended.
         case "$c" in *"reset weekly"*) wk="last week" ;; *) wk="this week" ;; esac
-        echo "Ads blocked: $2 in the last count, $1 $wk$when"
+        echo "Ads blocked: $week $wk$when"
     fi
 fi
 exit 0
