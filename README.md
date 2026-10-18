@@ -9,7 +9,7 @@ short summary: what is fine, and what needs a look.
 - **Read-only**: it reports, it never changes your router's configuration.
 - **Adapts to your router**: a section whose add-on is not installed is skipped.
 - **Never silent**: a section that fails or hangs is shown as unavailable (it never blocks the
-  e-mail), sending is retried 3 times, and an e-mail that could not be sent is reported in the next one.
+  e-mail), sending is tried up to 3 times, and an e-mail that could not be sent is reported in the next one.
 - **Uses the e-mail set up in amtm**, sent by Martinski's SendEmail add-on: no extra password to store.
 - **Modular**: one small script per section. Adding a section = dropping a file.
 
@@ -74,7 +74,7 @@ When something is wrong, the subject becomes `[ATTENTION]` and the ALERTS sectio
 | Speed tests | spdMerlin | latest result per interface | no new result for 25 h, failed tests |
 | Backups | BACKUPMON | last NVRAM / JFFS / USB backup | last NVRAM backup older than 26 h, BACKUPMON errors |
 | New devices | DHCP (dnsmasq) | MAC addresses never seen before | a new device joined the LAN |
-| System | — | firmware (and pending MerlinAU update), uptime, load, memory, temperature, storage, files writable by anyone in /jffs | firmware changed, disk almost full, a script writable by anyone, CPU temperature (optional) |
+| System | — | firmware (and pending MerlinAU update), uptime, load, memory, temperature, storage, files writable by anyone in /jffs | firmware changed, disk almost full, a script (or an amtm file) writable by anyone, CPU temperature (optional) |
 
 ## Requirements
 
@@ -153,7 +153,7 @@ After that, only devices never seen before are reported.
    SendEmail can also send its own test: `/jffs/scripts/SendEmail -test`.
 3. Check that the daily e-mail is scheduled (header: `Daily e-mail : HH:MM`, otherwise option 3).
 
-A digest that could not be sent is reported at the top of the next one.
+A digest that could not be sent is reported in the ALERTS of the next one, with its own alerts.
 
 ## Settings
 
