@@ -15,8 +15,12 @@ for f in /jffs/addons/spdmerlin.d/lastx_*.csv /opt/share/spdmerlin.d/lastx_*.csv
     is_number "$ts" || continue
     found=1
     age=$((NOW - ts))
-    echo "$name: ${dl%.*} down / ${ul%.*} up Mbps, ${lat%.*} ms ($(fmt_age "$age") ago)"
-    if [ "$age" -gt $((SPEEDTEST_MAX_AGE_H * 3600)) ]; then
+    # An interface excluded from automatic tests in spdMerlin ("#excluded#" in
+    # its .interfaces_user) keeps its last result: shown, never "stale".
+    excl=""
+    grep -q "^${name}[ #].*#" "${f%/*}/.interfaces_user" 2>/dev/null && excl=", excluded from automatic tests"
+    echo "$name: ${dl%.*} down / ${ul%.*} up Mbps, ${lat%.*} ms ($(fmt_age "$age") ago$excl)"
+    if [ -z "$excl" ] && [ "$age" -gt $((SPEEDTEST_MAX_AGE_H * 3600)) ]; then
         stale="$stale $name"
     fi
 done

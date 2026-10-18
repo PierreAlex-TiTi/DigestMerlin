@@ -64,7 +64,8 @@ done
 # --- VPNMON-R3 (optional): is it running, and what did it change?
 if [ -f "$VR3" ]; then
     shown=1
-    if ps w 2>/dev/null | grep -q "[v]pnmon-r3.sh"; then
+    # "ax": all processes, also with Entware's procps ps (BusyBox ps ignores it).
+    if ps axww 2>/dev/null | grep -q "[v]pnmon-r3.sh"; then
         echo "VPNMON-R3: running"
     else
         echo "VPNMON-R3: NOT running"

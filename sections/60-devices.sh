@@ -14,7 +14,11 @@ n_now=$(printf '%s\n' "$current" | grep -c .)
 
 if [ ! -f "$known" ]; then
     # First run: everything present today is the baseline, nothing is "new".
-    if [ -z "$DM_PREVIEW" ]; then
+    # With no lease at all (e.g. just after a reboot) the baseline waits for the
+    # next run: otherwise every device would then be reported as new.
+    if [ "$n_now" -eq 0 ]; then
+        echo "No device leased yet: the list of known devices is created on the next run"
+    elif [ -z "$DM_PREVIEW" ]; then
         # shellcheck disable=SC2174
         mkdir -p -m 700 "$DM_STATE" && printf '%s\n' "$current" | awk 'NF {print $1}' > "$known"
         echo "Baseline created: $n_now device(s) recorded as known"
