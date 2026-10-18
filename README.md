@@ -31,7 +31,7 @@ Blocked inbound (24h): 0 | outbound: 0
 Diversion 6.1.1: enabled | ad blocking on
 Blocking list: 56735 domains (Standard) - loaded by dnsmasq
 List update: Thu 08 Oct 02:10 (4d20h ago, weekly on Thursday)
-Ads blocked: 2,165 in the last count, 8,896 this week (Mon 12 Oct 17:20)
+Ads blocked: 8,896 this week (counted Mon 12 Oct 17:20)
 
 === VPN ===
 WGC1 (FR server): UP | 203.0.113.10:51820 | handshake <1m ago
@@ -76,7 +76,7 @@ When something is wrong, the subject becomes `[ATTENTION]` and the ALERTS sectio
 | Section | Needs | Reports | Alerts when |
 |---|---|---|---|
 | Skynet | Skynet (v9 for traffic counts) | blacklist size, last list refresh, download failures, blocked inbound/outbound traffic | blacklist not loaded or halved since yesterday, lists not refreshed on schedule, download failures, log collection stalled |
-| Diversion | Diversion | version and status, blocking list size and whether dnsmasq loads it, last list update, ads blocked (Diversion's daily count) | Diversion disabled or ad blocking off, list missing, empty, not loaded or halved since the last digest, list not updated on its weekly schedule, Diversion's files on the USB drive missing |
+| Diversion | Diversion | version and status, blocking list size and whether dnsmasq loads it, last list update, ads blocked this week (Diversion's daily count) | Diversion disabled or ad blocking off, list missing, empty, not loaded or halved since the last digest, list not updated on its weekly schedule, Diversion's files on the USB drive missing |
 | VPN | WireGuard and/or OpenVPN clients; VPNMON-R3 optional | each enabled WireGuard client (endpoint, last handshake), each active OpenVPN client, VPNMON-R3 restarts | interface down, no handshake for 10 min, OpenVPN error or stopped while set to start with WAN, VPNMON-R3 not running |
 | Speed tests | spdMerlin | latest result per interface | no new result for 25 h, failed tests |
 | Backups | BACKUPMON | last NVRAM / JFFS / USB backup | last NVRAM backup older than 26 h, BACKUPMON errors |

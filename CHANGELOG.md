@@ -2,8 +2,8 @@
 
 ## v0.4.0 - (in test)
 - New section: **Diversion** (ad blocking). Shows its version and status, the size of the blocking
-  list and whether dnsmasq loads it, the last list update and the ads blocked (Diversion's daily
-  count). Alerts when Diversion or ad blocking is off, when the list is missing, empty, not loaded or
+  list and whether dnsmasq loads it, the last list update and the ads blocked this week (Diversion's
+  daily count). Alerts when Diversion or ad blocking is off, when the list is missing, empty, not loaded or
   halved since the last digest, when the list misses its weekly update, and when Diversion's files on
   the USB drive cannot be found.
 - Sections renumbered to make room for it: 10 Skynet, 20 Diversion, 30 VPN, 40 speed tests,
