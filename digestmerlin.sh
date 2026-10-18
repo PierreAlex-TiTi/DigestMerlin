@@ -1,7 +1,7 @@
 #!/bin/sh
 # shellcheck disable=SC2034
-version=0.4.0
-VERSION="0.4.0-test4"
+version=0.3.0
+VERSION="0.3.0"
 # Both lines above carry the same release number (a test build adds "-testN"
 # to the second only): amtm reads the first, menus of v0.2.0 read the second. Keep them on top, before any other mention.
 #
@@ -24,10 +24,7 @@ VERSION="0.4.0-test4"
 # the e-mail: it is reported as unavailable.
 
 REPO="${DM_REPO:-https://raw.githubusercontent.com/PierreAlex-TiTi/DigestMerlin/main}"
-SECTION_FILES="lib.sh 10-skynet.sh 20-diversion.sh 30-vpn.sh 40-speedtest.sh 50-backupmon.sh 60-devices.sh 70-system.sh"
-# Sections renamed in v0.4.0 ("old name|title"): removed on install or update,
-# also for versions that kept no file list (v0.2.0 and older).
-LEGACY_SECTIONS="20-vpn.sh|VPN 30-speedtest.sh|SPEED TESTS (spdMerlin) 40-backupmon.sh|BACKUPS (BACKUPMON) 50-devices.sh|NEW DEVICES 60-system.sh|SYSTEM"
+SECTION_FILES="lib.sh 10-skynet.sh 20-vpn.sh 30-speedtest.sh 40-backupmon.sh 50-devices.sh 60-system.sh"
 SCRIPT_PATH="/jffs/scripts/digestmerlin.sh"
 DM_DIR="${DM_DIR:-/jffs/addons/digestmerlin.d}"
 SECTIONS_DIR="${SECTIONS_DIR:-$DM_DIR/sections}"
@@ -51,44 +48,18 @@ SUBJECT_PREFIX=""
 # must never stop the e-mail, the update or the uninstall: defaults are used
 # and the digest says so.
 CONF_BROKEN=""
-# nvram reads can hang on some firmware builds: never wait more than 5 s.
-# BusyBox before 1.30 wants "timeout -t 5", later versions "timeout 5".
-if timeout -t 1 true >/dev/null 2>&1; then
-    nv() { timeout -t 5 nvram get "$1" 2>/dev/null; }
-elif timeout 1 true >/dev/null 2>&1; then
-    nv() { timeout 5 nvram get "$1" 2>/dev/null; }
-else
-    nv() { nvram get "$1" 2>/dev/null; }
-fi
-
-DM_NUM_SETTINGS="WG_HANDSHAKE_MAX SPEEDTEST_MAX_AGE_H BACKUP_MAX_AGE_H DISK_ALERT_PCT CPU_TEMP_ALERT REBOOT_MAX_DAYS DEVICES_IGNORE_PRIVATE_MAC"
 load_conf() {
-    CONF_BROKEN=""; CONF_INVALID=""
     [ -f "$DM_CONF" ] || return 0
-    # Windows line endings (file edited on a PC) are removed on a copy.
-    f="$DM_CONF"
-    if grep -q "$(printf '\r')" "$DM_CONF" 2>/dev/null; then
-        f="/tmp/digestmerlin-conf.$$"; tr -d '\r' < "$DM_CONF" > "$f" 2>/dev/null || { CONF_BROKEN=1; return 0; }
-    fi
     # Syntax checked first, then loaded once in a subshell: an error that only
     # shows when the file runs (e.g. ${X:?}) cannot stop this script either.
     # shellcheck disable=SC1090
-    if sh -n "$f" 2>/dev/null && ( . "$f" ) >/dev/null 2>&1; then
+    if sh -n "$DM_CONF" 2>/dev/null && ( . "$DM_CONF" ) >/dev/null 2>&1; then
         # shellcheck disable=SC1090
-        . "$f"
+        . "$DM_CONF"
+        CONF_BROKEN=""
     else
         CONF_BROKEN=1
     fi
-    [ "$f" = "$DM_CONF" ] || rm -f "$f"
-    # Number settings: "08" is read as 8; anything else that is not a plain
-    # number (e.g. "30%") is ignored and reported - the sections use the default.
-    for k in $DM_NUM_SETTINGS; do
-        eval "v=\${$k}"
-        [ -n "$v" ] || continue
-        n=$(echo "$v" | sed 's/^0*\([0-9]\)/\1/')
-        case "$n" in *[!0-9]*) CONF_INVALID="$CONF_INVALID $k=$v"; continue ;; esac
-        [ ${#n} -le 6 ] || CONF_INVALID="$CONF_INVALID $k=$v"
-    done
 }
 load_conf
 export DM_DIR DM_CONF DM_STATE
@@ -102,7 +73,7 @@ log() { logger -t "$LOGTAG" "$*"; }
 child_pids() {
     parent=$1
     for st in /proc/[0-9]*/stat; do
-        { read -r line < "$st"; } 2>/dev/null || continue
+        read -r line < "$st" 2>/dev/null || continue
         rest=${line##*) }                       # fields after "pid (name) "
         # shellcheck disable=SC2086
         set -- $rest                            # $1 = state, $2 = parent pid
@@ -112,23 +83,12 @@ child_pids() {
 
 # Signal $1 and all its descendants: a hung nvram, wg or sqlite3 started by a
 # section must not outlive it.
-# All descendants of $1 (children first listed after their parent).
-descendants() {
-    for c in $(child_pids "$1"); do echo "$c"; descendants "$c"; done
-}
-# Stop $1 and everything it started. The list is taken once, before TERM: a
-# child that ignores TERM is re-parented when its parent dies, and would no
-# longer be found by a second search.
 kill_tree() {
-    pids="$1 $(descendants "$1")"
-    # shellcheck disable=SC2086
-    kill -TERM $pids 2>/dev/null; sleep 1
-    # shellcheck disable=SC2086
-    kill -KILL $pids 2>/dev/null
-    return 0
+    for c in $(child_pids "$1"); do kill_tree "$c" "$2"; done
+    kill -"$2" "$1" 2>/dev/null
 }
 
-section_name() {   # 30-vpn.sh -> vpn
+section_name() {   # 20-vpn.sh -> vpn
     n=$(basename "$1" .sh)
     echo "${n#[0-9][0-9]-}"
 }
@@ -142,17 +102,13 @@ build_digest() {
     DM_ALERTS="$WORK/alerts"
     : > "$DM_ALERTS"
     export NOW WINDOW_H SINCE DM_ALERTS
-    trap 'rm -rf "$WORK" ${LOCK_HELD:+"$LOCK_HELD"}' EXIT
-    trap 'rm -rf "$WORK" ${LOCK_HELD:+"$LOCK_HELD"}; exit 1' INT TERM
+    trap 'rm -rf "$WORK"' EXIT
+    trap 'rm -rf "$WORK"; exit 1' INT TERM
 
     out="$WORK/sections"; : > "$out"
     n_ok=0; n_bad=0; skipped=""
-    # Sections renamed in v0.4.0 and left by an interrupted update: not run
-    # (they would appear twice), reported below.
-    legacy=$(legacy_left)
     for mod in "$SECTIONS_DIR"/[0-9][0-9]-*.sh; do
         [ -f "$mod" ] || continue
-        case " $(echo $legacy) " in *" ${mod##*/} "*) continue ;; esac
         name=$(section_name "$mod")
         case " $DISABLED_SECTIONS " in *" $name "*) continue ;; esac
         title=$(sed -n '2s/^# TITLE: *//p' "$mod")
@@ -165,7 +121,7 @@ build_digest() {
             sleep 1; w=$((w + 1))
         done
         if kill -0 "$pid" 2>/dev/null; then
-            kill_tree "$pid"
+            kill_tree "$pid" TERM; sleep 1; kill_tree "$pid" KILL
             wait "$pid" 2>/dev/null
             body="Section unavailable (no answer after ${SECTION_TIMEOUT}s)"
             printf -- '- %s: section stopped after %ss\n' "$title" "$SECTION_TIMEOUT" >> "$DM_ALERTS"
@@ -189,7 +145,7 @@ build_digest() {
         printf '=== %s ===\n%s\n\n' "$title" "$body" >> "$out"
     done
 
-    host=$(nv productid)
+    host=$(nvram get productid 2>/dev/null)
     if [ "$n_ok" -eq 0 ] && [ "$n_bad" -eq 0 ]; then
         if [ -n "$(ls "$SECTIONS_DIR"/[0-9][0-9]-*.sh 2>/dev/null)" ]; then
             printf -- '- No section ran: all sections are disabled or not applicable (menu option 4)\n' >> "$DM_ALERTS"
@@ -203,12 +159,6 @@ build_digest() {
     fi
     if [ -n "$CONF_BROKEN" ]; then
         printf -- '- Settings file %s has a syntax error - default settings were used\n' "$DM_CONF" >> "$DM_ALERTS"
-    fi
-    for kv in $CONF_INVALID; do
-        printf -- '- Setting %s is not a plain number (value: %s) - its default was used\n' "${kv%%=*}" "${kv#*=}" >> "$DM_ALERTS"
-    done
-    if [ -n "$legacy" ]; then
-        printf -- '- An update was interrupted: old section files are still there (%s) - run: sh %s update\n' "$(echo $legacy)" "$SCRIPT_PATH" >> "$DM_ALERTS"
     fi
     if [ -f "$DM_STATE/unsent" ]; then
         printf -- '- The previous digest could not be e-mailed - check the e-mail settings in amtm (em, se)\n' >> "$DM_ALERTS"
@@ -230,9 +180,6 @@ build_digest() {
     fi
     if [ -s "$DM_ALERTS" ]; then
         tag="ATTENTION"; summary="$(grep -c . "$DM_ALERTS") point(s) need attention - see ALERTS."
-    elif [ "$n_bad" -gt 0 ]; then
-        # Alerts could not be written (e.g. /tmp full): never "All green".
-        tag="ATTENTION"; summary="$n_bad section(s) unavailable - see below."
     else
         tag="OK"; summary="All green."
     fi
@@ -289,17 +236,10 @@ send_digest() {
             log "ERROR: no way to send e-mail - set up e-mail in amtm (em) and install SendEmail (amtm, se)"
             say "ERROR: e-mail is not set up - in amtm: 'em' (e-mail settings), then 'se' (SendEmail)." >&2 ;;
         library)
-            # A damaged library would stop this script: check it first.
-            if ! sh -n "$CEM_LIB" 2>/dev/null; then
-                log "ERROR: $CEM_LIB is damaged - install SendEmail (amtm, se)"
-                say "ERROR: the e-mail library is damaged - in amtm, choose 'se' (SendEmail)." >&2
-                method=none
-            else
-                # shellcheck disable=SC1090
-                . "$CEM_LIB"
-                # shellcheck disable=SC2034
-                cemScriptFNameTag="$LOGTAG"
-            fi ;;
+            # shellcheck disable=SC1090
+            . "$CEM_LIB"
+            # shellcheck disable=SC2034
+            cemScriptFNameTag="$LOGTAG" ;;
     esac
     # The digest is sent as HTML, with the text inside <pre> as is. Escape &,
     # < and >: an unescaped "<1m ago" can hide the rest of the digest in strict
@@ -403,39 +343,16 @@ do_remove_all() {
 files_complete() {
     [ -f "$SCRIPT_PATH" ] && [ -f "$SECTIONS_DIR/lib.sh" ] || return 1
     [ -n "$(ls "$SECTIONS_DIR"/[0-9][0-9]-*.sh 2>/dev/null)" ] || return 1
-    # The list of THIS version (an interrupted update can leave an older .files).
-    for f in $SECTION_FILES; do
+    [ -f "$DM_DIR/.files" ] || return 0
+    for f in $(cat "$DM_DIR/.files"); do
         [ -f "$SECTIONS_DIR/$f" ] || return 1
-    done
-    # A section renamed in v0.4.0 still there (update interrupted): reinstall.
-    [ -z "$(legacy_left)" ]
-}
-
-# Old section files (renamed in v0.4.0) still present with our own title.
-legacy_left() {
-    printf '%s\n' "$LEGACY_SECTIONS" | sed 's/ \([0-9][0-9]-\)/\n\1/g' | while IFS='|' read -r f title; do
-        [ -n "$f" ] && [ -f "$SECTIONS_DIR/$f" ] || continue
-        [ "$(sed -n 2p "$SECTIONS_DIR/$f")" = "# TITLE: $title" ] && echo "$f"
     done
 }
 
 # Latest version number published on GitHub (empty if unreachable).
-# VERSION= is read first: a test build carries its "-testN" there only.
 remote_version() {
-    r=$(curl -fsSL --max-time 20 "$REPO/digestmerlin.sh" 2>/dev/null) || return 0
-    v=$(printf '%s\n' "$r" | sed -n 's/^VERSION="\([0-9][0-9.]*\(-[A-Za-z0-9]*\)\{0,1\}\)"$/\1/p' | head -1)
-    [ -n "$v" ] || v=$(printf '%s\n' "$r" | sed -n 's/^version=\([0-9][0-9.]*\)$/\1/p' | head -1)
-    echo "$v"
-}
-
-# Remove the sections renamed in v0.4.0, but only a file that still carries
-# our own title on line 2: a section you wrote yourself is never touched.
-# $1: the section files of the version just installed.
-remove_legacy_sections() {
-    for f in $(legacy_left); do
-        case " $1 " in *" $f "*) ;; *) rm -f "$SECTIONS_DIR/$f" ;; esac
-    done
-    return 0
+    curl -fsSL --max-time 20 "$REPO/digestmerlin.sh" 2>/dev/null \
+        | sed -n 's/^version=\([0-9][0-9.]*\)$/\1/p; s/^VERSION="\([0-9][0-9.]*\)"$/\1/p' | head -1
 }
 
 # Download all files into $1. Returns 1 on any failure. The list of sections
@@ -493,7 +410,6 @@ $DM_DIR/sections/$f|$1/sections/$f"
             case " $files " in *" $f "*) ;; *) case "$f" in */*|'') ;; *) rm -f "$DM_DIR/sections/$f" ;; esac ;; esac
         done
     fi
-    [ "$ok" = "1" ] && remove_legacy_sections "$files"
     [ "$ok" = "1" ] && printf '%s\n' "$files" > "$DM_DIR/.files"
     chmod 700 "$DM_DIR"
     chmod 755 "$DM_DIR/sections" "$SCRIPT_PATH" "$DM_DIR"/sections/*.sh
@@ -511,7 +427,6 @@ do_update() {
         say "ERROR: download failed - nothing was changed. Try again later." >&2
         return 1
     fi
-    old=$(sed -n 's/^VERSION="\(.*\)"$/\1/p' "$SCRIPT_PATH" 2>/dev/null | head -1)
     install_release "$tmp"; irc=$?
     if [ "$irc" -ne 0 ]; then
         rm -rf "$tmp"
@@ -526,7 +441,7 @@ do_update() {
     fi
     new=$(sed -n 's/^VERSION="\(.*\)"$/\1/p' "$SCRIPT_PATH" | head -1)
     rm -rf "$tmp"
-    log "Installed v$new (was v${old:-?})"
+    log "Installed v$new (was v$VERSION)"
     say "DigestMerlin v$new installed."
     return 0
 }
@@ -562,7 +477,7 @@ do_setup() {
 SETTINGS="WG_HANDSHAKE_MAX|600|VPN: seconds without a WireGuard handshake|num|Alert when a WireGuard tunnel has had no handshake for this long (seconds).|600 = 10 minutes
 SPEEDTEST_MAX_AGE_H|25|spdMerlin: hours without a new result|num|Alert when spdMerlin has not produced a new result for this many hours.|25 for a daily test
 BACKUP_MAX_AGE_H|26|BACKUPMON: hours since the last NVRAM backup|num|Alert when the last BACKUPMON NVRAM backup is older than this (hours).|26 for a daily backup
-DISK_ALERT_PCT|90|Storage: % used|num|Alert when /jffs or the USB drive is this full or more (%).|90
+DISK_ALERT_PCT|90|Storage: % used|num|Alert when /jffs or the USB drive is fuller than this (%).|90
 CPU_TEMP_ALERT||CPU temperature in C|opt|Alert when the CPU reaches this temperature (C). Normal values depend on the model.|about 10 above your usual value, e.g. 75
 REBOOT_MAX_DAYS||Days without a reboot|opt|Alert when the router has been running longer than this (days).|8 for a weekly reboot
 DEVICES_IGNORE_PRIVATE_MAC|0|New devices: ignore private MACs (0 or 1)|bool|1 = do not report devices using a random private MAC address (phones, laptops).|0 to report them, 1 to ignore them
@@ -637,7 +552,7 @@ menu_header() {
         case " $(conf_get DISABLED_SECTIONS) " in *" $(section_name "$mod") "*) n_off=$((n_off + 1)) ;; esac
     done
     say " ==============================================="
-    say "   DigestMerlin v$VERSION  -  $(nv productid)"
+    say "   DigestMerlin v$VERSION  -  $(nvram get productid 2>/dev/null)"
     say " ==============================================="
     say "   Daily e-mail : ${t:-not scheduled}"
     say "   Last digest  : $last"
@@ -786,7 +701,7 @@ is_num() { case "$1" in ''|*[!0-9]*) return 1 ;; *) return 0 ;; esac; }
 # Accepted range for each numeric setting: protects against typos (e.g. 6C).
 setting_range() {
     case "$1" in
-        WG_HANDSHAKE_MAX)    echo "180 86400" ;;
+        WG_HANDSHAKE_MAX)    echo "60 86400" ;;
         SPEEDTEST_MAX_AGE_H) echo "1 720" ;;
         BACKUP_MAX_AGE_H)    echo "1 720" ;;
         DISK_ALERT_PCT)      echo "1 100" ;;
@@ -796,17 +711,14 @@ setting_range() {
     esac
 }
 
+# 1 if version $1 is newer than $2 (numbers separated by dots)
 # True if version $1 is newer than $2. A test build ("0.3.0-test9") is older
 # than the release with the same number ("0.3.0").
 is_newer() {
     awk -v a="$1" -v b="$2" 'BEGIN {
-        sa = (a ~ /-/); sb = (b ~ /-/); a0 = a; b0 = b; sub(/^[^-]*-/, "", a0); sub(/^[^-]*-/, "", b0)
-        sub(/-.*/, "", a); sub(/-.*/, "", b)
+        sa = (a ~ /-/); sb = (b ~ /-/); sub(/-.*/, "", a); sub(/-.*/, "", b)
         na = split(a, x, "."); nb = split(b, y, "."); n = (na > nb) ? na : nb
         for (i = 1; i <= n; i++) { if (x[i] + 0 > y[i] + 0) exit 0; if (x[i] + 0 < y[i] + 0) exit 1 }
-        if (sa && sb) {        # two test builds of the same release: compare N of -testN
-            ta = a0; tb = b0; gsub(/[^0-9]/, "", ta); gsub(/[^0-9]/, "", tb)
-            exit !(ta + 0 > tb + 0) }
         exit !(sb && !sa) }'
 }
 
@@ -828,7 +740,7 @@ menu_update() {
                 fi ;;
         esac
     elif ! files_complete; then
-        printf ' You have the latest version, but some files are missing or out of date. Reinstall them now? [y/N] '
+        printf ' You have the latest version, but some files are missing. Reinstall them now? [y/N] '
         read -r ans || exit 0
         case "$ans" in y|Y) do_update ;; esac
     else
@@ -902,25 +814,9 @@ case "$1" in
         say "Subject: $SUBJECT"; say ""; say "$BODY"
         ;;
     run)
-        # One run at a time (cron and a manual run together would send the
-        # same new-device alert twice). A lock left by a crashed run is taken over.
-        LOCK=/tmp/digestmerlin.lock
-        if ! mkdir "$LOCK" 2>/dev/null; then
-            lpid=$(cat "$LOCK/pid" 2>/dev/null)
-            if [ -n "$lpid" ] && kill -0 "$lpid" 2>/dev/null; then
-                log "Already running (pid $lpid) - this run is skipped"
-                say "DigestMerlin is already running (pid $lpid)." >&2
-                exit 1
-            fi
-            rm -rf "$LOCK"; mkdir "$LOCK" 2>/dev/null || exit 1
-        fi
-        echo $$ > "$LOCK/pid"
-        LOCK_HELD="$LOCK"
         log "Building the daily digest"
-        build_digest || { rm -rf "$LOCK"; exit 1; }
-        send_digest; rc=$?
-        rm -rf "$LOCK"
-        exit "$rc"
+        build_digest || exit 1
+        send_digest
         ;;
     section)
         f=$(ls "$SECTIONS_DIR"/[0-9][0-9]-"$2".sh 2>/dev/null | head -1)
