@@ -1,5 +1,33 @@
 # Changelog
 
+## v0.4.0 - (in test)
+- New section: **Diversion** (ad blocking). Shows its version and status, the size of the blocking
+  list and whether dnsmasq loads it, the last list update and the ads blocked this week (Diversion's
+  daily count). Alerts when Diversion or ad blocking is off, when the list is missing, empty, not loaded or
+  halved since the last digest, when the list misses its weekly update, and when Diversion's files on
+  the USB drive cannot be found.
+- Sections renumbered to make room for it: 10 Skynet, 20 Diversion, 30 VPN, 40 speed tests,
+  50 BACKUPMON, 60 new devices, 70 system. Settings (disabled sections...) are kept: they use the
+  names, not the numbers. The old files are removed on update, also when updating from v0.2.0;
+  a section you wrote yourself is never removed.
+- Robustness (three independent reviews):
+  - spdMerlin: an interface excluded from automatic tests keeps its last result - it is shown, no longer
+    alerted as stale every day;
+  - VPNMON-R3 is found also when Entware's procps "ps" is installed;
+  - number settings edited by hand: "08" is read as 8, an invalid value ("90%") is ignored and reported;
+  - a settings file saved with Windows line endings is read correctly;
+  - the router name is read with a timeout (nvram can hang on some firmware builds);
+  - two runs at the same time (cron and a manual run) can no longer send the same alerts twice;
+  - an update interrupted half-way (old and new section files side by side) is reported in the
+    digest, without duplicate sections;
+  - never "All green" when sections could not run; a damaged e-mail library no longer loses the digest;
+  - a section that hangs is stopped together with every program it started;
+  - the first run waits for at least one DHCP lease before recording the known devices;
+  - the WireGuard handshake limit starts at 180 s (a healthy tunnel renews it every 2 minutes).
+- SYSTEM: amtm's own files that anyone can modify are now only reported on their own line, not
+  alerted: amtm re-creates them on each update, and its author considers this harmless on a
+  single-user router.
+
 ## v0.3.0 - 2026-10-18
 - amtm-ready: `version=` line, `setup` installs everything from the main script alone,
   `amtmupdate` / `amtmupdate check` for amtm's automatic updates.
