@@ -1,9 +1,9 @@
 #!/bin/sh
 # shellcheck disable=SC2034
 version=0.3.0
-VERSION="0.3.0-test9"
-# Both lines above carry the same number: amtm reads the first, menus of
-# v0.2.0 read the second. Keep them on top, before any other mention.
+VERSION="0.3.0-test10"
+# Both lines above carry the same release number (a test build adds "-testN"
+# to the second only): amtm reads the first, menus of v0.2.0 read the second. Keep them on top, before any other mention.
 #
 # DigestMerlin - one daily e-mail summarising the health of an Asuswrt-Merlin
 # router and its add-ons (Skynet, WireGuard/VPNMON-R3, spdMerlin, BACKUPMON...).
@@ -215,9 +215,9 @@ send_once() {
             bodyf="/tmp/digestmerlin-mail.$$"
             printf '%s\n' "$mailbody" > "$bodyf" && chmod 600 "$bodyf"
             # SendEmail puts each argument inside '...' and evaluates the list again:
-            # an apostrophe would break it. A leading "-" would be taken as an option.
+            # an apostrophe would break it. A leading "-" or "Word=" would be taken as an option.
             # </dev/null: SendEmail never waits for a key, even from a terminal.
-            sesubj=$(printf '%s' "$subject" | sed "s/'/’/g; s/^-*//")
+            sesubj=$(printf '%s' "$subject" | sed "s/'/’/g; s/^-*//; s/^\([A-Za-z]*\)=/\1 =/")
             "$SENDEMAIL" -html -quiet -From="DigestMerlin" "$sesubj" -Body="$bodyf" </dev/null >/dev/null 2>&1; r=$?
             rm -f "$bodyf"
             return "$r" ;;
@@ -231,9 +231,10 @@ send_digest() {
     method=$(mail_method)
     case "$method" in
         none)
+            # Not returned straight away: the digest is kept as unsent below, so
+            # its alerts reach the next e-mail once e-mail is set up again.
             log "ERROR: no way to send e-mail - set up e-mail in amtm (em) and install SendEmail (amtm, se)"
-            say "ERROR: e-mail is not set up - in amtm: 'em' (e-mail settings), then 'se' (SendEmail)." >&2
-            return 1 ;;
+            say "ERROR: e-mail is not set up - in amtm: 'em' (e-mail settings), then 'se' (SendEmail)." >&2 ;;
         library)
             # shellcheck disable=SC1090
             . "$CEM_LIB"
@@ -247,6 +248,7 @@ send_digest() {
     [ -n "$DM_TEST" ] && subject="[TEST] $SUBJECT"    # tell a test from the daily e-mail
     mailbody=$(printf '%s\n' "$BODY" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
     try=1; rc=0; tries="${SEND_TRIES:-3}"
+    [ "$method" = none ] && { tries=0; rc=1; }
     while [ "$try" -le "$tries" ]; do
         send_once; rc=$?
         if [ "$rc" -eq 0 ]; then
@@ -274,7 +276,11 @@ send_digest() {
     printf '%s\n\n%s\n' "$SUBJECT" "$BODY" > "$DM_STATE/unsent"
     chmod 600 "$DM_STATE/unsent"
     save_last_run "$tag" "NOT sent"
-    log "ERROR: digest not sent after $tries attempt(s) (code $rc) - kept in $DM_STATE/unsent"
+    if [ "$method" = none ]; then
+        log "ERROR: digest not sent (e-mail not set up) - kept in $DM_STATE/unsent"
+    else
+        log "ERROR: digest not sent after $tries attempt(s) (code $rc) - kept in $DM_STATE/unsent"
+    fi
     return 1
 }
 
@@ -292,8 +298,8 @@ do_install() {
     case "$h" in ''|*[!0-9]*) say "Invalid time: $t (use HH:MM)"; return 1 ;; esac
     case "$m" in ''|*[!0-9]*) say "Invalid time: $t (use HH:MM)"; return 1 ;; esac
     [ "$h" -le 23 ] && [ "$m" -le 59 ] || { say "Invalid time: $t"; return 1; }
-    h=$(echo "$h" | sed 's/^0\(.\)/\1/')
-    m=$(echo "$m" | sed 's/^0\(.\)/\1/')
+    h=$(echo "$h" | sed 's/^0*\([0-9]\)/\1/')   # "008" -> "8", never octal
+    m=$(echo "$m" | sed 's/^0*\([0-9]\)/\1/')
     job="$m $h * * * sh $SCRIPT_PATH run"
     cru d "$CRU_ID" 2>/dev/null
     cru a "$CRU_ID" "$job"
@@ -684,7 +690,7 @@ EOF_LINE
                 fi ;;
             bool) case "$val" in 0|1) ;; *) say " Please enter 0 or 1."; pause; continue ;; esac ;;
             text) [ "$val" = "none" ] && val=""
-                  case "$val" in *[\"\\\$\`\']*|-*) say ' Not allowed: " \ $ ` and apostrophes, or a leading -'; pause; continue ;; esac ;;
+                  case "$val" in *[\"\\\$\`\'=]*|-*) say ' Not allowed: " \ $ ` = and apostrophes, or a leading -'; pause; continue ;; esac ;;
         esac
         conf_set "$key" "$val"
     done
@@ -706,11 +712,14 @@ setting_range() {
 }
 
 # 1 if version $1 is newer than $2 (numbers separated by dots)
+# True if version $1 is newer than $2. A test build ("0.3.0-test9") is older
+# than the release with the same number ("0.3.0").
 is_newer() {
     awk -v a="$1" -v b="$2" 'BEGIN {
+        sa = (a ~ /-/); sb = (b ~ /-/); sub(/-.*/, "", a); sub(/-.*/, "", b)
         na = split(a, x, "."); nb = split(b, y, "."); n = (na > nb) ? na : nb
         for (i = 1; i <= n; i++) { if (x[i] + 0 > y[i] + 0) exit 0; if (x[i] + 0 < y[i] + 0) exit 1 }
-        exit 1 }'
+        exit !(sb && !sa) }'
 }
 
 menu_update() {
