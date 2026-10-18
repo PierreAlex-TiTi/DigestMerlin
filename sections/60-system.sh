@@ -87,7 +87,12 @@ if [ -n "$FIND" ]; then
     n_d=$(grep -c . "$tmp.data")
     if [ "$n_s" -gt 0 ]; then
         echo "Scripts writable by anyone: $n_s"
-        add_alert "System: $n_s script(s) writable by anyone - they run as root (e.g. $(head -1 "$tmp.scripts")) - fix with chmod o-w"
+        if grep -qv '^/jffs/addons/amtm/' "$tmp.scripts"; then
+            add_alert "System: $n_s script(s) writable by anyone - they run as root (e.g. $(grep -v '^/jffs/addons/amtm/' "$tmp.scripts" | head -1)) - fix with chmod o-w"
+        else
+            # amtm writes its files with the umask of the shell it runs in (often 000)
+            add_alert "System: $n_s amtm file(s) writable by anyone - amtm runs them as root - fix with: chmod -R o-w /jffs/addons/amtm (needed again after amtm updates)"
+        fi
     else
         echo "Scripts writable by anyone: 0"
     fi
