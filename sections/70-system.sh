@@ -32,12 +32,71 @@ if [ -f "$mau" ]; then
 fi
 
 # --- Uptime and last boot
-up=$(cut -d. -f1 /proc/uptime 2>/dev/null)
+up=$(cut -d. -f1 "${PROC_UPTIME:-/proc/uptime}" 2>/dev/null)   # PROC_UPTIME: tests only
 if is_number "$up"; then
     echo "Last boot: $(fmt_time $((NOW - up))) (up $(fmt_age "$up"))"
     if is_number "$REBOOT_MAX_DAYS" && [ "$up" -gt $((REBOOT_MAX_DAYS * 86400)) ]; then
         add_alert "System: no reboot for $(fmt_age "$up") (expected at least every $REBOOT_MAX_DAYS days)"
     fi
+fi
+
+# --- WAN link drops: the firmware logs "WAN_Connection: WAN(0) link down." and
+# "... link up." when the link to the modem/ONT goes down and comes back.
+# After a reboot, lines written before the clock is set are dated 1 Jan 1970
+# ("Jan  1" east of UTC, "Dec 31" west of it): they belong to the boot itself,
+# which is shown above, and are skipped.
+boot=""; is_number "$up" && boot=$((NOW - up))
+drops=0; last=""; longest=""; open_n=""
+for n in 0 1; do eval "down_$n="; done
+wtmp="/tmp/digestmerlin-wan.$$"
+read_logs | grep -E 'WAN_Connection: WAN\([01]\) link (down|up)\.' > "$wtmp"
+while IFS= read -r line; do
+    set -f; set -- $line; set +f
+    ts=$(pdate "%b %e %H:%M:%S" "$1 $2 $3") || continue
+    if [ "$ts" -gt $((NOW + 86400)) ]; then
+        ts=$(pdate "%Y %b %e %H:%M:%S" "$(($(date +%Y) - 1)) $1 $2 $3") || continue
+    fi
+    # Pre-clock line: dated before the boot, and read as 1970 it falls within
+    # the first hour after the clock started (a real event of that day keeps
+    # its place unless it happened in that same hour before a same-day reboot).
+    # Known limit: after a reboot in the first hour of Jan 1, a pre-clock line
+    # cannot be told from a real one (one false drop, once a year at most).
+    case "$1 $2" in
+        "Jan 1"|"Dec 31")
+            y=1970; [ "$1" = "Dec" ] && y=1969
+            e=$(pdate "%Y %b %e %H:%M:%S" "$y $1 $2 $3")
+            if [ -n "$boot" ] && [ "$ts" -lt "$boot" ] && [ -n "$e" ] && [ "$e" -ge 0 ] 2>/dev/null && [ "$e" -le 3600 ]; then
+                continue
+            fi ;;
+    esac
+    [ "$ts" -ge "$SINCE" ] && [ "$ts" -le "$NOW" ] || continue
+    case "$line" in *"WAN(1)"*) n=1 ;; *) n=0 ;; esac
+    case "$line" in
+        *"link down."*)
+            drops=$((drops + 1)); last=$ts
+            eval "down_$n=\$ts" ;;
+        *"link up."*)
+            eval "d=\$down_$n"
+            if [ -n "$d" ]; then
+                dur=$((ts - d))
+                { [ -z "$longest" ] || [ "$dur" -gt "$longest" ]; } && longest=$dur
+                eval "down_$n="
+            fi ;;
+    esac
+done < "$wtmp"
+rm -f "$wtmp"
+# A drop with no "link up" after it (yet).
+for n in 0 1; do eval "d=\$down_$n"; [ -n "$d" ] && open_n="${open_n:+$open_n, }WAN($n)"; done
+fmt_dur() { if [ "$1" -lt 60 ]; then echo "${1}s"; else fmt_age "$1"; fi; }
+if [ "$drops" -eq 0 ]; then
+    echo "WAN link drops (24h): 0"
+else
+    info="last $(fmt_time "$last")"
+    [ -n "$longest" ] && info="$info, longest $(fmt_dur "$longest")"
+    [ -n "$open_n" ] && info="$info, $open_n not back up in the log"
+    echo "WAN link drops (24h): $drops ($info)"
+    t="times"; [ "$drops" -eq 1 ] && t="time"
+    add_alert "System: WAN link dropped $drops $t in 24h ($info)"
 fi
 
 # --- Load, memory, temperature
