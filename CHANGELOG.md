@@ -35,6 +35,11 @@
     program's pid (after a reboot) no longer blocks the daily e-mail;
   - a full /jffs or /tmp is reported instead of silently losing the digest or the device list;
   - the e-mail library runs apart from DigestMerlin, so it can never stop it.
+- E-mail look: section titles in bold (no more "==="), OK in green, ATTENTION and the alerts in red,
+  the last lines in grey. The text itself is unchanged, and a mail client that ignores colours shows
+  it as before. The menu preview stays plain text.
+- An age measured a few seconds after the digest started (e.g. a WireGuard handshake renewed during
+  the run) shows "<1m" instead of "?".
 - SYSTEM: amtm's own files that anyone can modify are now only reported on their own line, not
   alerted: amtm re-creates them on each update, and its author considers this harmless on a
   single-user router.

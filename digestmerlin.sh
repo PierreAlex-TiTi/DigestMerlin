@@ -1,7 +1,7 @@
 #!/bin/sh
 # shellcheck disable=SC2034
 version=0.4.0
-VERSION="0.4.0-test6"
+VERSION="0.4.0-test7"
 # Both lines above carry the same release number (a test build adds "-testN"
 # to the second only): amtm reads the first, menus of v0.2.0 read the second. Keep them on top, before any other mention.
 #
@@ -324,6 +324,24 @@ send_once() {
     esac
 }
 
+# Light styling of the e-mail, applied to the already escaped text (the digest
+# itself, the preview and the saved copy stay plain): section titles in bold
+# without "===", OK in green / ATTENTION and the alerts in red, footer in grey.
+mail_style() {
+    awk -v tag="$1" '
+        function grey(t) { return "<span style=\"color:#59636e\">" t "</span>" }
+        /^=== .* ===$/ { sec = substr($0, 5, length($0) - 8); print "<b>" sec "</b>"; next }
+        sec == "SUMMARY" && NF {
+            if (tag == "OK") print "<b style=\"color:#1a7f37\">OK</b> - " $0
+            else print "<b style=\"color:#b42318\">ATTENTION</b> - " $0
+            sec = "-"; next }
+        sec == "ALERTS" && /^- / { print "<span style=\"color:#b42318\">" $0 "</span>"; next }
+        sec == "ALERTS" && $0 == "None" { print grey($0); next }
+        sec == "ALERTS" && /^$/ { sec = "FOOTER"; print; next }
+        sec == "FOOTER" && NF { print grey($0); next }
+        { print }'
+}
+
 send_digest() {
     method=$(mail_method)
     case "$method" in
@@ -345,7 +363,7 @@ send_digest() {
     # mail clients (Outlook renders HTML with Word).
     subject="$SUBJECT"
     [ -n "$DM_TEST" ] && subject="[TEST] $SUBJECT"    # tell a test from the daily e-mail
-    mailbody=$(printf '%s\n' "$BODY" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
+    mailbody=$(printf '%s\n' "$BODY" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g' | mail_style "$tag")
     try=1; rc=0; tries="${SEND_TRIES:-3}"
     [ "$method" = none ] && { tries=0; rc=1; }
     while [ "$try" -le "$tries" ]; do
