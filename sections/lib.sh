@@ -85,6 +85,9 @@ in_window() {
 # "3h12m", "2d4h", "45m" from a number of seconds.
 fmt_age() {
     s="$1"
+    # Slightly negative: the event happened after the digest started (e.g. a
+    # WireGuard handshake renewed while the sections were running) = just now.
+    case "$s" in -[0-9]*) s=0 ;; esac
     case "$s" in ''|*[!0-9]*) echo "?"; return ;; esac
     if [ "$s" -ge 86400 ]; then echo "$((s / 86400))d$(((s % 86400) / 3600))h"
     elif [ "$s" -ge 3600 ]; then echo "$((s / 3600))h$(((s % 3600) / 60))m"
