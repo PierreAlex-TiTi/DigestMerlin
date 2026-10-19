@@ -55,6 +55,7 @@ No new device (12 leased now)
 Firmware: 3006.102.9_0 (RT-AX86U_PRO)
 MerlinAU: no pending update
 Last boot: Sun 11 Oct 03:03 (up 1d19h)
+WAN link drops (24h): 0
 Load: 1.18 1.16 1.15 | memory 61% used | swap 0 MB used | CPU 64C
 Storage /jffs: 22% used
 Storage Entware (USB): 5% used
@@ -81,7 +82,7 @@ When something is wrong, the subject becomes `[ATTENTION]` and the ALERTS sectio
 | Speed tests | spdMerlin | latest result per interface | no new result for 25 h (interfaces excluded from automatic tests in spdMerlin are shown, never alerted), failed tests |
 | Backups | BACKUPMON | last NVRAM / JFFS / EXT Drive (USB) backup | no BACKUPMON log or no completed NVRAM backup, last NVRAM backup older than 26 h, BACKUPMON errors |
 | New devices | DHCP (dnsmasq) | MAC addresses never seen before | a new device joined the LAN |
-| System | — (Entware `findutils` for the permission check) | firmware (and pending MerlinAU update), uptime, load, memory, temperature, storage, files writable by anyone in /jffs/scripts, /jffs/addons and /jffs/configs | firmware changed, disk almost full, a script writable by anyone, CPU temperature (optional), no reboot for too long (optional) |
+| System | — (Entware `findutils` for the permission check) | firmware (and pending MerlinAU update), uptime, WAN link drops, load, memory, temperature, storage, files writable by anyone in /jffs/scripts, /jffs/addons and /jffs/configs | firmware changed, WAN link dropped, disk almost full, a script writable by anyone, CPU temperature (optional), no reboot for too long (optional) |
 
 ## Requirements
 
