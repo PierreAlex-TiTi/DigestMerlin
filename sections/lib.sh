@@ -37,6 +37,13 @@ if [ -f "$DM_CONF" ]; then
         _v=$(echo "$_v" | sed 's/^0*\([0-9]\)/\1/')       # "08" -> "8", never octal
         case "$_v" in *[!0-9]*) unset "$_k"; continue ;; esac
         [ ${#_v} -le 6 ] || { unset "$_k"; continue; }
+        # Same limits as the menu (the main script reports values outside them).
+        case "$_k" in
+            WG_HANDSHAKE_MAX) _r="180 86400" ;; SPEEDTEST_MAX_AGE_H|BACKUP_MAX_AGE_H) _r="1 720" ;;
+            DISK_ALERT_PCT) _r="1 100" ;; CPU_TEMP_ALERT) _r="40 125" ;; REBOOT_MAX_DAYS) _r="1 365" ;;
+            DEVICES_IGNORE_PRIVATE_MAC) _r="0 1" ;; *) _r="0 999999" ;;
+        esac
+        if [ "$_v" -lt "${_r% *}" ] || [ "$_v" -gt "${_r#* }" ]; then unset "$_k"; continue; fi
         eval "$_k=\$_v"
     done
 fi
@@ -112,12 +119,25 @@ state_set() {
 }
 
 # nvram reads can hang on some firmware builds: never wait more than 5 s.
-# BusyBox before 1.30 wants "timeout -t 5", later versions "timeout 5".
+# BusyBox before 1.30 wants "timeout -t 5", later versions "timeout 5"; Merlin's
+# BusyBox has no timeout at all (Entware adds one): then the read runs in the
+# background and is stopped after 5 s.
 # Each form is tested by running it ("command -v" is not reliable on routers).
-if timeout -t 1 true >/dev/null 2>&1; then
-    nv() { timeout -t 5 nvram get "$1" 2>/dev/null; }
-elif timeout 1 true >/dev/null 2>&1; then
-    nv() { timeout 5 nvram get "$1" 2>/dev/null; }
+# KILL, not TERM: a stuck read may ignore TERM.
+if timeout -t 1 -s KILL true >/dev/null 2>&1; then
+    nv() { timeout -t 5 -s KILL nvram get "$1" 2>/dev/null; }
+elif timeout -s KILL 1 true >/dev/null 2>&1; then
+    nv() { timeout -s KILL 5 nvram get "$1" 2>/dev/null; }
 else
-    nv() { nvram get "$1" 2>/dev/null; }
+    nv() {
+        _nvo="/tmp/digestmerlin-nv.$$"
+        nvram get "$1" > "$_nvo" 2>/dev/null &
+        _nvp=$!; _nvi=0
+        while kill -0 "$_nvp" 2>/dev/null && [ "$_nvi" -lt 50 ]; do
+            usleep 100000 2>/dev/null || sleep 1
+            _nvi=$((_nvi + 1))
+        done
+        kill -9 "$_nvp" 2>/dev/null; wait "$_nvp" 2>/dev/null
+        cat "$_nvo" 2>/dev/null; rm -f "$_nvo"
+    }
 fi

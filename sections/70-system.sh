@@ -100,5 +100,7 @@ if [ -n "$FIND" ]; then
     fi
     [ "$n_a" -gt 0 ] && echo "amtm files writable by anyone: $n_a (amtm re-creates them on update)"
     rm -f "$tmp.scripts" "$tmp.amtm" "$tmp.data"
+else
+    echo "Scripts writable by anyone: not checked (needs Entware's find: opkg install findutils)"
 fi
 exit 0
