@@ -77,11 +77,11 @@ When something is wrong, the subject becomes `[ATTENTION]` and the ALERTS sectio
 |---|---|---|---|
 | Skynet | Skynet (v9 for traffic counts) | blacklist size, last list refresh, download failures, blocked inbound/outbound traffic | blacklist not loaded or halved since the last digest, lists not refreshed on schedule, download failures, log collection stalled |
 | Diversion | Diversion | version and status, blocking list size and whether dnsmasq loads it, last list update, ads blocked this week (Diversion's daily count; right after its weekly reset, last week's total) | Diversion disabled or ad blocking off, list missing, empty, not loaded or halved since the last digest, list not updated on its weekly schedule, Diversion's files on the USB drive missing |
-| VPN | WireGuard and/or OpenVPN clients; VPNMON-R3 optional | each enabled WireGuard client (endpoint, last handshake), each active OpenVPN client, VPNMON-R3 restarts | interface down, no handshake for 10 min (setting) or never, OpenVPN error, still connecting, connected without its interface, or stopped while set to start with WAN, VPNMON-R3 not running |
+| VPN | WireGuard and/or OpenVPN clients; VPNMON-R3 optional | each enabled WireGuard client (endpoint, last handshake), each OpenVPN client that is running or set to start with the WAN, VPNMON-R3 restarts | interface down, no handshake for 10 min (setting) or never, OpenVPN error, still connecting, connected without its interface, or stopped while set to start with WAN, VPNMON-R3 not running |
 | Speed tests | spdMerlin | latest result per interface | no new result for 25 h (interfaces excluded from automatic tests in spdMerlin are shown, never alerted), failed tests |
 | Backups | BACKUPMON | last NVRAM / JFFS / EXT Drive (USB) backup | no BACKUPMON log or no completed NVRAM backup, last NVRAM backup older than 26 h, BACKUPMON errors |
 | New devices | DHCP (dnsmasq) | MAC addresses never seen before | a new device joined the LAN |
-| System | — | firmware (and pending MerlinAU update), uptime, load, memory, temperature, storage, files writable by anyone in /jffs | firmware changed, disk almost full, a script writable by anyone, CPU temperature (optional), no reboot for too long (optional) |
+| System | — (Entware `findutils` for the permission check) | firmware (and pending MerlinAU update), uptime, load, memory, temperature, storage, files writable by anyone in /jffs/scripts, /jffs/addons and /jffs/configs | firmware changed, disk almost full, a script writable by anyone, CPU temperature (optional), no reboot for too long (optional) |
 
 ## Requirements
 
@@ -91,10 +91,12 @@ When something is wrong, the subject becomes `[ATTENTION]` and the ALERTS sectio
   and keeps Martinski's Custom Email Library (`CustomEMailFunctions.lib.sh`) up to date.
   If SendEmail is not installed but the library is already on the router (installed by another
   add-on), DigestMerlin uses the library directly and the menu recommends installing SendEmail.
-- Entware is recommended (its `find` is used for the world-writable check) but not required.
+- Entware is recommended but not required. Its `find` (`opkg install findutils`) is needed for the
+  check of files writable by anyone (without it, the digest says "not checked"), and its `timeout`
+  is used to stop a hanging nvram read (without it, DigestMerlin stops the read itself after 5 s).
 
-Tested on an RT-AX86U Pro with Merlin 3006.102.9, Skynet 9.0.5, VPNMON-R3, spdMerlin, BACKUPMON and
-MerlinAU 1.7.1, with WireGuard clients. Also reported working on an RT-BE88U and an RT-AX86U. The OpenVPN checks have
+Tested on an RT-AX86U Pro with Merlin 3006.102.9, Skynet 9.0.5, Diversion 6.1.1, VPNMON-R3, spdMerlin,
+BACKUPMON and MerlinAU 1.7.1, with WireGuard clients. Also reported working on an RT-BE88U and an RT-AX86U. The OpenVPN checks have
 only been tested on a simulated router so far: reports from OpenVPN users and other models are welcome.
 
 ## Install / update
@@ -154,7 +156,7 @@ After that, only devices never seen before are reported.
    - `SendEmail`: all set.
 
    Sent through SendEmail, the digest shows **DigestMerlin** as the sender name; through the library
-   alone, it shows the sender name set in amtm (`em`). Keep that in mind for mail filters.
+   alone, it shows the router's login user name. Keep that in mind for mail filters.
 2. Back in the DigestMerlin menu, use option 2 to send a test digest. If it says `NOT sent`,
    check the e-mail settings in amtm again (an expired app password is a common cause).
    SendEmail can also send its own test: `/jffs/scripts/SendEmail -test`.
@@ -198,8 +200,8 @@ cp /jffs/addons/digestmerlin.d/digestmerlin.conf.sample /jffs/addons/digestmerli
 nano /jffs/addons/digestmerlin.d/digestmerlin.conf    # or vi (nano: opkg install nano)
 ```
 
-Number settings must be plain numbers (`90`, not `90%`): any other value is ignored, its default is used
-and the digest says so.
+Number settings must be plain numbers (`90`, not `90%`) within the limits the menu shows: any other value
+is ignored, its default is used and the digest says so.
 Check the effect with menu option 1 (or `sh /jffs/scripts/digestmerlin.sh preview`).
 Your settings are kept when you update DigestMerlin.
 
@@ -220,8 +222,10 @@ add_alert "MyTool: something needs a look"     # goes to the ALERTS list
 exit 0
 ```
 
-`lib.sh` provides `read_logs` and `in_window` (syslog lines of the last 24 h), `nv` (nvram read with
-a timeout), `fmt_age`, `fmt_time`, and `state_get` / `state_set` to remember a value between runs.
+A section must print at least one line: one that prints nothing is shown as unavailable.
+
+`lib.sh` provides `read_logs` and `in_window` (syslog lines of the last 24 h), `nv` (nvram read,
+stopped after 5 s), `fmt_age`, `fmt_time`, and `state_get` / `state_set` to remember a value between runs.
 
 ## Files
 
@@ -240,7 +244,8 @@ Menu option 7, or:
 sh /jffs/scripts/digestmerlin.sh uninstall
 ```
 
-Both ask first, then remove everything: schedule, settings, history and files.
+Both ask first, then remove everything: schedule, settings, history and files - including any section
+you added in `/jffs/addons/digestmerlin.d/sections/` (copy it elsewhere first if you want to keep it).
 
 ## License
 

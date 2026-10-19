@@ -16,14 +16,25 @@
   - VPNMON-R3 is found also when Entware's procps "ps" is installed;
   - number settings edited by hand: "08" is read as 8, an invalid value ("90%") is ignored and reported;
   - a settings file saved with Windows line endings is read correctly;
-  - the router name is read with a timeout (nvram can hang on some firmware builds);
+  - nvram reads (router name...) are stopped after 5 s, also without Entware's `timeout` (nvram can
+    hang on some firmware builds);
   - two runs at the same time (cron and a manual run) can no longer send the same alerts twice;
   - an update interrupted half-way (old and new section files side by side) is reported in the
     digest, without duplicate sections;
   - never "All green" when sections could not run; a damaged e-mail library no longer loses the digest;
   - a section that hangs is stopped together with every program it started;
   - the first run waits for at least one DHCP lease before recording the known devices;
-  - the WireGuard handshake limit starts at 180 s (a healthy tunnel renews it every 2 minutes).
+  - the WireGuard handshake limit starts at 180 s (a healthy tunnel renews it every 2 minutes);
+  - settings edited by hand must stay within the menu's limits: a value outside them (e.g. a
+    WireGuard limit of 60 saved by v0.3.0) is ignored, its default is used and the digest says so;
+  - spdMerlin with automatic tests turned off: results shown, no daily "no new result" alert;
+  - without Entware's `find`, the digest says the permission check was not done (it was silent);
+  - menu option 6 also offers to reinstall when files of this version are missing or old ones remain;
+  - the menu reads a settings file with Windows line endings or '...' quotes correctly;
+  - a stuck nvram read is killed even if it ignores the stop signal; a lock left by another
+    program's pid (after a reboot) no longer blocks the daily e-mail;
+  - a full /jffs or /tmp is reported instead of silently losing the digest or the device list;
+  - the e-mail library runs apart from DigestMerlin, so it can never stop it.
 - SYSTEM: amtm's own files that anyone can modify are now only reported on their own line, not
   alerted: amtm re-creates them on each update, and its author considers this harmless on a
   single-user router.

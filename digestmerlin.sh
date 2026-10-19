@@ -1,7 +1,7 @@
 #!/bin/sh
 # shellcheck disable=SC2034
 version=0.4.0
-VERSION="0.4.0-test5"
+VERSION="0.4.0-test6"
 # Both lines above carry the same release number (a test build adds "-testN"
 # to the second only): amtm reads the first, menus of v0.2.0 read the second. Keep them on top, before any other mention.
 #
@@ -52,14 +52,41 @@ SUBJECT_PREFIX=""
 # and the digest says so.
 CONF_BROKEN=""
 # nvram reads can hang on some firmware builds: never wait more than 5 s.
-# BusyBox before 1.30 wants "timeout -t 5", later versions "timeout 5".
-if timeout -t 1 true >/dev/null 2>&1; then
-    nv() { timeout -t 5 nvram get "$1" 2>/dev/null; }
-elif timeout 1 true >/dev/null 2>&1; then
-    nv() { timeout 5 nvram get "$1" 2>/dev/null; }
+# BusyBox before 1.30 wants "timeout -t 5", later versions "timeout 5"; Merlin's
+# BusyBox has no timeout at all (Entware adds one): then the read runs in the
+# background and is stopped after 5 s.
+# KILL, not TERM: a stuck read may ignore TERM.
+if timeout -t 1 -s KILL true >/dev/null 2>&1; then
+    nv() { timeout -t 5 -s KILL nvram get "$1" 2>/dev/null; }
+elif timeout -s KILL 1 true >/dev/null 2>&1; then
+    nv() { timeout -s KILL 5 nvram get "$1" 2>/dev/null; }
 else
-    nv() { nvram get "$1" 2>/dev/null; }
+    nv() {
+        _nvo="/tmp/digestmerlin-nv.$$"
+        nvram get "$1" > "$_nvo" 2>/dev/null &
+        _nvp=$!; _nvi=0
+        while kill -0 "$_nvp" 2>/dev/null && [ "$_nvi" -lt 50 ]; do
+            usleep 100000 2>/dev/null || sleep 1
+            _nvi=$((_nvi + 1))
+        done
+        kill -9 "$_nvp" 2>/dev/null; wait "$_nvp" 2>/dev/null
+        cat "$_nvo" 2>/dev/null; rm -f "$_nvo"
+    }
 fi
+
+# Accepted range for each numeric setting: protects against typos (e.g. 6C).
+setting_range() {
+    case "$1" in
+        WG_HANDSHAKE_MAX)    echo "180 86400" ;;
+        SPEEDTEST_MAX_AGE_H) echo "1 720" ;;
+        BACKUP_MAX_AGE_H)    echo "1 720" ;;
+        DISK_ALERT_PCT)      echo "1 100" ;;
+        CPU_TEMP_ALERT)      echo "40 125" ;;
+        REBOOT_MAX_DAYS)     echo "1 365" ;;
+        DEVICES_IGNORE_PRIVATE_MAC) echo "0 1" ;;
+        *)                   echo "0 999999" ;;
+    esac
+}
 
 DM_NUM_SETTINGS="WG_HANDSHAKE_MAX SPEEDTEST_MAX_AGE_H BACKUP_MAX_AGE_H DISK_ALERT_PCT CPU_TEMP_ALERT REBOOT_MAX_DAYS DEVICES_IGNORE_PRIVATE_MAC"
 load_conf() {
@@ -86,8 +113,16 @@ load_conf() {
         eval "v=\${$k}"
         [ -n "$v" ] || continue
         n=$(echo "$v" | sed 's/^0*\([0-9]\)/\1/')
-        case "$n" in *[!0-9]*) CONF_INVALID="$CONF_INVALID $k=$v"; continue ;; esac
-        [ ${#n} -le 6 ] || CONF_INVALID="$CONF_INVALID $k=$v"
+        case "$n" in *[!0-9]*) CONF_INVALID="$CONF_INVALID$k=$v
+"; continue ;; esac
+        [ ${#n} -le 6 ] || { CONF_INVALID="$CONF_INVALID$k=$v
+"; continue; }
+        # Same limits as the menu (a hand edit could bypass them).
+        r=$(setting_range "$k")
+        if [ "$n" -lt "${r% *}" ] || [ "$n" -gt "${r#* }" ]; then
+            CONF_INVALID="$CONF_INVALID$k=$v (allowed: ${r% *}-${r#* })
+"
+        fi
     done
 }
 load_conf
@@ -204,8 +239,8 @@ build_digest() {
     if [ -n "$CONF_BROKEN" ]; then
         printf -- '- Settings file %s has a syntax error - default settings were used\n' "$DM_CONF" >> "$DM_ALERTS"
     fi
-    for kv in $CONF_INVALID; do
-        printf -- '- Setting %s is not a plain number (value: %s) - its default was used\n' "${kv%%=*}" "${kv#*=}" >> "$DM_ALERTS"
+    printf '%s' "$CONF_INVALID" | while IFS= read -r kv; do
+        [ -n "$kv" ] && printf -- '- Setting %s has an invalid value (%s) - its default was used\n' "${kv%%=*}" "${kv#*=}" >> "$DM_ALERTS"
     done
     if [ -n "$legacy" ]; then
         printf -- '- An update was interrupted: old section files are still there (%s) - run: sh %s update\n' "$(echo $legacy)" "$SCRIPT_PATH" >> "$DM_ALERTS"
@@ -266,7 +301,10 @@ send_once() {
     case "$method" in
         SendEmail)
             bodyf="/tmp/digestmerlin-mail.$$"
-            printf '%s\n' "$mailbody" > "$bodyf" && chmod 600 "$bodyf"
+            if ! { printf '%s\n' "$mailbody" > "$bodyf" && [ -s "$bodyf" ]; }; then
+                rm -f "$bodyf"; log "ERROR: cannot write the e-mail to /tmp (is /tmp full?)"; return 1
+            fi
+            chmod 600 "$bodyf"
             # SendEmail puts each argument inside '...' and evaluates the list again:
             # an apostrophe would break it. A leading "-" or "Word=" would be taken as an option.
             # </dev/null: SendEmail never waits for a key, even from a terminal.
@@ -275,7 +313,13 @@ send_once() {
             rm -f "$bodyf"
             return "$r" ;;
         library)
-            _SendEMailNotification_CEM_ "$subject" "$mailbody" ;;
+            # In a subshell: nothing in the library can stop or change this script.
+            # Success only if the send function itself ran and returned 0 (a
+            # library that exits early is a failure, whatever its exit code).
+            # shellcheck disable=SC1090,SC2034
+            r=$( ( . "$CEM_LIB" >/dev/null 2>&1; cemScriptFNameTag="$LOGTAG"
+                   _SendEMailNotification_CEM_ "$subject" "$mailbody" >/dev/null 2>&1; echo "rc=$?" ) )
+            case "$r" in rc=0) return 0 ;; rc=*) return "${r#rc=}" ;; *) return 1 ;; esac ;;
         *)  return 1 ;;
     esac
 }
@@ -294,11 +338,6 @@ send_digest() {
                 log "ERROR: $CEM_LIB is damaged - install SendEmail (amtm, se)"
                 say "ERROR: the e-mail library is damaged - in amtm, choose 'se' (SendEmail)." >&2
                 method=none
-            else
-                # shellcheck disable=SC1090
-                . "$CEM_LIB"
-                # shellcheck disable=SC2034
-                cemScriptFNameTag="$LOGTAG"
             fi ;;
     esac
     # The digest is sent as HTML, with the text inside <pre> as is. Escape &,
@@ -333,11 +372,13 @@ send_digest() {
     fi
     # shellcheck disable=SC2174
     mkdir -p -m 700 "$DM_STATE"
-    printf '%s\n\n%s\n' "$SUBJECT" "$BODY" > "$DM_STATE/unsent"
+    if ! { printf '%s\n\n%s\n' "$SUBJECT" "$BODY" > "$DM_STATE/unsent" && [ -s "$DM_STATE/unsent" ]; }; then
+        log "ERROR: digest not sent and could not be saved (is /jffs full?)"
+    fi
     chmod 600 "$DM_STATE/unsent"
     save_last_run "$tag" "NOT sent"
     if [ "$method" = none ]; then
-        log "ERROR: digest not sent (e-mail not set up) - kept in $DM_STATE/unsent"
+        log "ERROR: digest not sent (no working e-mail method) - kept in $DM_STATE/unsent"
     else
         log "ERROR: digest not sent after $tries attempt(s) (code $rc) - kept in $DM_STATE/unsent"
     fi
@@ -573,7 +614,8 @@ pause() { printf '\n Press Enter to continue... '; read -r _ || exit 0; }
 # Current value of a setting in digestmerlin.conf (last definition wins), quotes removed.
 conf_get() {
     [ -f "$DM_CONF" ] || return 0
-    sed -n "s/^$1=//p" "$DM_CONF" | tail -1 | sed 's/^"\(.*\)"$/\1/'
+    # Windows line endings and '...' quotes (file edited by hand) are accepted.
+    tr -d '\r' < "$DM_CONF" | sed -n "s/^$1=//p" | tail -1 | sed "s/^\"\(.*\)\"\$/\1/; s/^'\(.*\)'\$/\1/"
 }
 
 # Write KEY="value" in digestmerlin.conf, replacing an existing line or adding one.
@@ -589,7 +631,7 @@ conf_set() {
         BEGIN {k = ENVIRON["DM_KEY"]; line = ENVIRON["DM_LINE"]}
         index($0, k "=") == 1 {if (!done) print line; done = 1; next}
         {print}
-        END {if (!done) print line}' "$DM_CONF" > "$DM_CONF.new"
+        END {if (!done) print line}' "$DM_CONF" | tr -d '\r' > "$DM_CONF.new"
     # BusyBox awk returns 0 even when the write failed (full /jffs): check the
     # result before it replaces the settings.
     # shellcheck disable=SC1090
@@ -783,18 +825,6 @@ EOF_LINE
 
 is_num() { case "$1" in ''|*[!0-9]*) return 1 ;; *) return 0 ;; esac; }
 
-# Accepted range for each numeric setting: protects against typos (e.g. 6C).
-setting_range() {
-    case "$1" in
-        WG_HANDSHAKE_MAX)    echo "180 86400" ;;
-        SPEEDTEST_MAX_AGE_H) echo "1 720" ;;
-        BACKUP_MAX_AGE_H)    echo "1 720" ;;
-        DISK_ALERT_PCT)      echo "1 100" ;;
-        CPU_TEMP_ALERT)      echo "40 125" ;;
-        REBOOT_MAX_DAYS)     echo "1 365" ;;
-        *)                   echo "0 999999" ;;
-    esac
-}
 
 # True if version $1 is newer than $2. A test build ("0.3.0-test9") is older
 # than the release with the same number ("0.3.0").
@@ -907,7 +937,10 @@ case "$1" in
         LOCK=/tmp/digestmerlin.lock
         if ! mkdir "$LOCK" 2>/dev/null; then
             lpid=$(cat "$LOCK/pid" 2>/dev/null)
-            if [ -n "$lpid" ] && kill -0 "$lpid" 2>/dev/null; then
+            # Just created by another run that has not written its pid yet.
+            [ -n "$lpid" ] || { sleep 2; lpid=$(cat "$LOCK/pid" 2>/dev/null); }
+            # A live pid that is not a DigestMerlin run (reused after a reboot) is stale.
+            if [ -n "$lpid" ] && kill -0 "$lpid" 2>/dev/null && grep -q digestmerlin "/proc/$lpid/cmdline" 2>/dev/null; then
                 log "Already running (pid $lpid) - this run is skipped"
                 say "DigestMerlin is already running (pid $lpid)." >&2
                 exit 1
@@ -946,7 +979,7 @@ case "$1" in
             menu_uninstall
             say " Nothing was removed."
         else
-            say "To remove DigestMerlin completely: $0 uninstall -y"
+            say "To remove DigestMerlin completely: sh $SCRIPT_PATH uninstall -y"
             exit 1
         fi ;;
     version)    say "DigestMerlin v$VERSION" ;;
