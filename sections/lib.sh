@@ -19,34 +19,10 @@ WINDOW_H="${WINDOW_H:-24}"
 SINCE="${SINCE:-$((NOW - WINDOW_H * 3600))}"
 
 # User settings (all optional, see digestmerlin.conf.sample).
-# A settings file with a syntax error is ignored (defaults are used); Windows
-# line endings are tolerated; a number setting that is not a plain number is
-# ignored (its default is used). The main script reports both in the digest.
-DM_NUM_SETTINGS="WG_HANDSHAKE_MAX SPEEDTEST_MAX_AGE_H BACKUP_MAX_AGE_H DISK_ALERT_PCT CPU_TEMP_ALERT REBOOT_MAX_DAYS DEVICES_IGNORE_PRIVATE_MAC"
-if [ -f "$DM_CONF" ]; then
-    _f="$DM_CONF"
-    if grep -q "$(printf '\r')" "$DM_CONF" 2>/dev/null; then
-        _f="/tmp/digestmerlin-conf.$$"; tr -d '\r' < "$DM_CONF" > "$_f" 2>/dev/null || _f=""
-    fi
-    # shellcheck disable=SC1090
-    [ -n "$_f" ] && sh -n "$_f" 2>/dev/null && ( . "$_f" ) >/dev/null 2>&1 && . "$_f"
-    [ "$_f" = "$DM_CONF" ] || rm -f "$_f"
-    for _k in $DM_NUM_SETTINGS; do
-        eval "_v=\${$_k}"
-        [ -n "$_v" ] || continue
-        _v=$(echo "$_v" | sed 's/^0*\([0-9]\)/\1/')       # "08" -> "8", never octal
-        case "$_v" in *[!0-9]*) unset "$_k"; continue ;; esac
-        [ ${#_v} -le 6 ] || { unset "$_k"; continue; }
-        # Same limits as the menu (the main script reports values outside them).
-        case "$_k" in
-            WG_HANDSHAKE_MAX) _r="180 86400" ;; SPEEDTEST_MAX_AGE_H|BACKUP_MAX_AGE_H) _r="1 720" ;;
-            DISK_ALERT_PCT) _r="1 100" ;; CPU_TEMP_ALERT) _r="40 125" ;; REBOOT_MAX_DAYS) _r="1 365" ;;
-            DEVICES_IGNORE_PRIVATE_MAC) _r="0 1" ;; *) _r="0 999999" ;;
-        esac
-        if [ "$_v" -lt "${_r% *}" ] || [ "$_v" -gt "${_r#* }" ]; then unset "$_k"; continue; fi
-        eval "$_k=\$_v"
-    done
-fi
+# A settings file with a syntax error is ignored (defaults are used): the main
+# script reports it in the digest.
+# shellcheck disable=SC1090
+[ -f "$DM_CONF" ] && sh -n "$DM_CONF" 2>/dev/null && ( . "$DM_CONF" ) >/dev/null 2>&1 && . "$DM_CONF"
 
 # Syslog dates are read with "date -D", which only BusyBox's date has. Entware
 # can put GNU date first in PATH (coreutils-date): fall back to BusyBox's own.
@@ -85,9 +61,6 @@ in_window() {
 # "3h12m", "2d4h", "45m" from a number of seconds.
 fmt_age() {
     s="$1"
-    # Slightly negative: the event happened after the digest started (e.g. a
-    # WireGuard handshake renewed while the sections were running) = just now.
-    case "$s" in -[0-9]*) s=0 ;; esac
     case "$s" in ''|*[!0-9]*) echo "?"; return ;; esac
     if [ "$s" -ge 86400 ]; then echo "$((s / 86400))d$(((s % 86400) / 3600))h"
     elif [ "$s" -ge 3600 ]; then echo "$((s / 3600))h$(((s % 3600) / 60))m"
@@ -122,25 +95,12 @@ state_set() {
 }
 
 # nvram reads can hang on some firmware builds: never wait more than 5 s.
-# BusyBox before 1.30 wants "timeout -t 5", later versions "timeout 5"; Merlin's
-# BusyBox has no timeout at all (Entware adds one): then the read runs in the
-# background and is stopped after 5 s.
+# BusyBox before 1.30 wants "timeout -t 5", later versions "timeout 5".
 # Each form is tested by running it ("command -v" is not reliable on routers).
-# KILL, not TERM: a stuck read may ignore TERM.
-if timeout -t 1 -s KILL true >/dev/null 2>&1; then
-    nv() { timeout -t 5 -s KILL nvram get "$1" 2>/dev/null; }
-elif timeout -s KILL 1 true >/dev/null 2>&1; then
-    nv() { timeout -s KILL 5 nvram get "$1" 2>/dev/null; }
+if timeout -t 1 true >/dev/null 2>&1; then
+    nv() { timeout -t 5 nvram get "$1" 2>/dev/null; }
+elif timeout 1 true >/dev/null 2>&1; then
+    nv() { timeout 5 nvram get "$1" 2>/dev/null; }
 else
-    nv() {
-        _nvo="/tmp/digestmerlin-nv.$$"
-        nvram get "$1" > "$_nvo" 2>/dev/null &
-        _nvp=$!; _nvi=0
-        while kill -0 "$_nvp" 2>/dev/null && [ "$_nvi" -lt 50 ]; do
-            usleep 100000 2>/dev/null || sleep 1
-            _nvi=$((_nvi + 1))
-        done
-        kill -9 "$_nvp" 2>/dev/null; wait "$_nvp" 2>/dev/null
-        cat "$_nvo" 2>/dev/null; rm -f "$_nvo"
-    }
+    nv() { nvram get "$1" 2>/dev/null; }
 fi
