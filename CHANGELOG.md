@@ -9,6 +9,9 @@
 - SYSTEM: **WAN link drops** in the last 24h (when the link to the modem went down and came back,
   as logged by the firmware), with the time of the last one and the longest; alert when there was one.
   Log lines written at boot before the clock is set are not counted (the reboot is already shown).
+- **Update check**: when a newer DigestMerlin is on GitHub, the last lines of the digest say so
+  (with the command to update). It is not an alert, nothing is sent (it reads the public version
+  file, like menu option 6), and `UPDATE_CHECK=0` (menu 5.9) turns it off.
 - Sections renumbered to make room for it: 10 Skynet, 20 Diversion, 30 VPN, 40 speed tests,
   50 BACKUPMON, 60 new devices, 70 system. Settings (disabled sections...) are kept: they use the
   names, not the numbers. The old files are removed on update, also when updating from v0.2.0;

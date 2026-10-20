@@ -1,7 +1,7 @@
 #!/bin/sh
 # shellcheck disable=SC2034
 version=0.4.0
-VERSION="0.4.0-test8"
+VERSION="0.4.0-test9"
 # Both lines above carry the same release number (a test build adds "-testN"
 # to the second only): amtm reads the first, menus of v0.2.0 read the second. Keep them on top, before any other mention.
 #
@@ -84,11 +84,12 @@ setting_range() {
         CPU_TEMP_ALERT)      echo "40 125" ;;
         REBOOT_MAX_DAYS)     echo "1 365" ;;
         DEVICES_IGNORE_PRIVATE_MAC) echo "0 1" ;;
+        UPDATE_CHECK)        echo "0 1" ;;
         *)                   echo "0 999999" ;;
     esac
 }
 
-DM_NUM_SETTINGS="WG_HANDSHAKE_MAX SPEEDTEST_MAX_AGE_H BACKUP_MAX_AGE_H DISK_ALERT_PCT CPU_TEMP_ALERT REBOOT_MAX_DAYS DEVICES_IGNORE_PRIVATE_MAC"
+DM_NUM_SETTINGS="WG_HANDSHAKE_MAX SPEEDTEST_MAX_AGE_H BACKUP_MAX_AGE_H DISK_ALERT_PCT CPU_TEMP_ALERT REBOOT_MAX_DAYS DEVICES_IGNORE_PRIVATE_MAC UPDATE_CHECK"
 load_conf() {
     CONF_BROKEN=""; CONF_INVALID=""
     [ -f "$DM_CONF" ] || return 0
@@ -113,16 +114,20 @@ load_conf() {
         eval "v=\${$k}"
         [ -n "$v" ] || continue
         n=$(echo "$v" | sed 's/^0*\([0-9]\)/\1/')
+        # An invalid value is unset here too, so that the main script also
+        # uses the default (UPDATE_CHECK is read by the main script).
         case "$n" in *[!0-9]*) CONF_INVALID="$CONF_INVALID$k=$v
-"; continue ;; esac
+"; unset "$k"; continue ;; esac
         [ ${#n} -le 6 ] || { CONF_INVALID="$CONF_INVALID$k=$v
-"; continue; }
+"; unset "$k"; continue; }
         # Same limits as the menu (a hand edit could bypass them).
         r=$(setting_range "$k")
         if [ "$n" -lt "${r% *}" ] || [ "$n" -gt "${r#* }" ]; then
             CONF_INVALID="$CONF_INVALID$k=$v (allowed: ${r% *}-${r#* })
 "
+            unset "$k"; continue
         fi
+        eval "$k=\$n"
     done
 }
 load_conf
@@ -271,6 +276,16 @@ build_digest() {
     else
         tag="OK"; summary="All green."
     fi
+    # A newer DigestMerlin on GitHub: one line at the end (no alert). Reads the
+    # public version file only; nothing is sent. No answer = no line.
+    upd=""
+    if [ "${UPDATE_CHECK:-1}" = "1" ]; then
+        rv=$(remote_version)
+        if [ -n "$rv" ] && is_newer "$rv" "$VERSION"; then
+            upd="
+Update available: DigestMerlin v$rv (menu option 6, or: sh $SCRIPT_PATH update)"
+        fi
+    fi
     SUBJECT="${SUBJECT_PREFIX:+${SUBJECT_PREFIX% } }[$tag] Daily digest ${host:-router} - $(date '+%Y-%m-%d')"
     BODY="=== SUMMARY ===
 $summary
@@ -282,7 +297,7 @@ $( [ -s "$DM_ALERTS" ] && cat "$DM_ALERTS" || echo "None")
 
 Generated $(date '+%Y-%m-%d %H:%M') - covers the last ${WINDOW_H}h
 Sections: $n_ok OK$( [ "$n_bad" -gt 0 ] && echo ", $n_bad unavailable")${skipped:+ | not installed:$skipped}
-DigestMerlin v$VERSION"
+DigestMerlin v$VERSION$upd"
     return 0
 }
 
@@ -338,6 +353,7 @@ mail_style() {
         sec == "ALERTS" && /^- / { print "<span style=\"color:#b42318\">" $0 "</span>"; next }
         sec == "ALERTS" && $0 == "None" { print grey($0); next }
         sec == "ALERTS" && /^$/ { sec = "FOOTER"; print; next }
+        sec == "FOOTER" && /^Update available: / { print "<b>" $0 "</b>"; next }
         sec == "FOOTER" && NF { print grey($0); next }
         { print }'
 }
@@ -625,7 +641,8 @@ DISK_ALERT_PCT|90|Storage: % used|num|Alert when /jffs or the USB drive is this 
 CPU_TEMP_ALERT||CPU temperature in C|opt|Alert when the CPU reaches this temperature (C). Normal values depend on the model.|about 10 above your usual value, e.g. 75
 REBOOT_MAX_DAYS||Days without a reboot|opt|Alert when the router has been running longer than this (days).|8 for a weekly reboot
 DEVICES_IGNORE_PRIVATE_MAC|0|New devices: ignore private MACs (0 or 1)|bool|1 = do not report devices using a random private MAC address (phones, laptops).|0 to report them, 1 to ignore them
-SUBJECT_PREFIX||Text in front of the e-mail subject|text|Added in front of the subject, e.g. to tell several routers apart.|[Home]"
+SUBJECT_PREFIX||Text in front of the e-mail subject|text|Added in front of the subject, e.g. to tell several routers apart.|[Home]
+UPDATE_CHECK|1|Update check in the digest (0 or 1)|bool|1 = the digest says when a new DigestMerlin version is on GitHub (one check per digest, nothing is sent).|1 to check, 0 to never check"
 
 pause() { printf '\n Press Enter to continue... '; read -r _ || exit 0; }
 

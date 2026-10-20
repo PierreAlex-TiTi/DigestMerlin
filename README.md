@@ -181,6 +181,7 @@ The easiest way to change them is the menu: option 4 for the sections, option 5 
 | `REBOOT_MAX_DAYS` | 5.6 | off | Alert when the router has not rebooted for this many days. See below. |
 | `DEVICES_IGNORE_PRIVATE_MAC` | 5.7 | 0 | `1` = do not report devices using a random "private" MAC address (phones, laptops). |
 | `SUBJECT_PREFIX` | 5.8 | (none) | Text added in front of the e-mail subject. See below. |
+| `UPDATE_CHECK` | 5.9 | 1 | `1` = the digest tells you when a new DigestMerlin version is on GitHub. See below. |
 
 **Why two alerts are off by default.** The temperature is shown in the SYSTEM section when the router reports it (no temperature shown means no temperature alert is possible),
 but what is normal depends on the model: around 65C on some routers, 80C or more on others. A fixed
@@ -192,6 +193,11 @@ a scheduled reboot did not happen.
 **Subject prefix.** With `[Home]`, the subject becomes `[Home] [OK] Daily digest RT-AX86U_PRO - ...`.
 Useful when you receive digests from several routers, or to sort them with an e-mail rule.
 In the menu, type `none` to remove it.
+
+**Update check.** Each digest reads the version of DigestMerlin published on GitHub
+(the same check as menu option 6). When a newer one exists, a line at the end of the e-mail says so;
+it is not an alert. Nothing is sent: it only reads a public file. If GitHub does not answer, the
+line is simply left out. `0` turns the check off.
 
 **Editing by hand.** The settings live in `/jffs/addons/digestmerlin.d/digestmerlin.conf`
 (created by the menu on the first change). Without the menu, create it from the sample and edit it:
@@ -224,6 +230,9 @@ exit 0
 ```
 
 A section must print at least one line: one that prints nothing is shown as unavailable.
+
+Updates never remove your own sections. Give yours a name of its own (e.g. `90-my-tailscale.sh`):
+a file with exactly the same name as one shipped with DigestMerlin would be replaced by it.
 
 `lib.sh` provides `read_logs` and `in_window` (syslog lines of the last 24 h), `nv` (nvram read,
 stopped after 5 s), `fmt_age`, `fmt_time`, and `state_get` / `state_set` to remember a value between runs.

@@ -28,3 +28,6 @@ REBOOT_MAX_DAYS=""
 
 # System: alert when the CPU temperature reaches this value in C (empty = off)
 CPU_TEMP_ALERT=""
+
+# The digest says when a new DigestMerlin version is on GitHub (1 = check, 0 = never)
+UPDATE_CHECK=1
