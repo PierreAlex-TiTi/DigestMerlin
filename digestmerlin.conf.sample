@@ -2,7 +2,7 @@
 # Every line is optional: the values below are the defaults.
 # To edit by hand: copy to /jffs/addons/digestmerlin.d/digestmerlin.conf
 
-# Sections to leave out, by name (skynet vpn speedtest backupmon devices system)
+# Sections to leave out, by name (skynet diversion vpn speedtest backupmon devices system)
 DISABLED_SECTIONS=""
 
 # Text added in front of the e-mail subject, e.g. "[Home] "
@@ -28,3 +28,6 @@ REBOOT_MAX_DAYS=""
 
 # System: alert when the CPU temperature reaches this value in C (empty = off)
 CPU_TEMP_ALERT=""
+
+# The digest says when a new DigestMerlin version is on GitHub (1 = check, 0 = never)
+UPDATE_CHECK=1

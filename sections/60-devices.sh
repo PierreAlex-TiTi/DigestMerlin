@@ -12,12 +12,23 @@ current=$(awk 'tolower($2) ~ /^[0-9a-f][0-9a-f](:[0-9a-f][0-9a-f])(:[0-9a-f][0-9
                    m = tolower($2); if (!(m in seen)) {seen[m] = 1; print m, $3, $4}}' "$LEASES" | sort)
 n_now=$(printf '%s\n' "$current" | grep -c .)
 
-if [ ! -f "$known" ]; then
+if [ ! -s "$known" ]; then       # missing or empty: no baseline yet
     # First run: everything present today is the baseline, nothing is "new".
-    if [ -z "$DM_PREVIEW" ]; then
+    # With no lease at all (e.g. just after a reboot) the baseline waits for the
+    # next run: otherwise every device would then be reported as new.
+    if [ "$n_now" -eq 0 ]; then
+        echo "No device leased yet: the list of known devices is created on the next run"
+    elif [ -z "$DM_PREVIEW" ]; then
         # shellcheck disable=SC2174
-        mkdir -p -m 700 "$DM_STATE" && printf '%s\n' "$current" | awk 'NF {print $1}' > "$known"
-        echo "Baseline created: $n_now device(s) recorded as known"
+        # Written aside, then renamed: a full /jffs never leaves an empty list
+        # (every device would then be reported as new).
+        if mkdir -p -m 700 "$DM_STATE" && printf '%s\n' "$current" | awk 'NF {print $1}' > "$known.new" \
+            && [ -s "$known.new" ] && mv "$known.new" "$known"; then
+            echo "Baseline created: $n_now device(s) recorded as known"
+        else
+            rm -f "$known.new"
+            echo "Could not record the known devices (is /jffs full?) - tried again on the next run"
+        fi
     else
         echo "No baseline yet (created on the first real run): $n_now device(s) leased now"
     fi

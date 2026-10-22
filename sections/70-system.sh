@@ -32,12 +32,71 @@ if [ -f "$mau" ]; then
 fi
 
 # --- Uptime and last boot
-up=$(cut -d. -f1 /proc/uptime 2>/dev/null)
+up=$(cut -d. -f1 "${PROC_UPTIME:-/proc/uptime}" 2>/dev/null)   # PROC_UPTIME: tests only
 if is_number "$up"; then
     echo "Last boot: $(fmt_time $((NOW - up))) (up $(fmt_age "$up"))"
     if is_number "$REBOOT_MAX_DAYS" && [ "$up" -gt $((REBOOT_MAX_DAYS * 86400)) ]; then
         add_alert "System: no reboot for $(fmt_age "$up") (expected at least every $REBOOT_MAX_DAYS days)"
     fi
+fi
+
+# --- WAN link drops: the firmware logs "WAN_Connection: WAN(0) link down." and
+# "... link up." when the link to the modem/ONT goes down and comes back.
+# After a reboot, lines written before the clock is set are dated 1 Jan 1970
+# ("Jan  1" east of UTC, "Dec 31" west of it): they belong to the boot itself,
+# which is shown above, and are skipped.
+boot=""; is_number "$up" && boot=$((NOW - up))
+drops=0; last=""; longest=""; open_n=""
+for n in 0 1; do eval "down_$n="; done
+wtmp="/tmp/digestmerlin-wan.$$"
+read_logs | grep -E 'WAN_Connection: WAN\([01]\) link (down|up)\.' > "$wtmp"
+while IFS= read -r line; do
+    set -f; set -- $line; set +f
+    ts=$(pdate "%b %e %H:%M:%S" "$1 $2 $3") || continue
+    if [ "$ts" -gt $((NOW + 86400)) ]; then
+        ts=$(pdate "%Y %b %e %H:%M:%S" "$(($(date +%Y) - 1)) $1 $2 $3") || continue
+    fi
+    # Pre-clock line: dated before the boot, and read as 1970 it falls within
+    # the first hour after the clock started (a real event of that day keeps
+    # its place unless it happened in that same hour before a same-day reboot).
+    # Known limit: after a reboot in the first hour of Jan 1, a pre-clock line
+    # cannot be told from a real one (one false drop, once a year at most).
+    case "$1 $2" in
+        "Jan 1"|"Dec 31")
+            y=1970; [ "$1" = "Dec" ] && y=1969
+            e=$(pdate "%Y %b %e %H:%M:%S" "$y $1 $2 $3")
+            if [ -n "$boot" ] && [ "$ts" -lt "$boot" ] && [ -n "$e" ] && [ "$e" -ge 0 ] 2>/dev/null && [ "$e" -le 3600 ]; then
+                continue
+            fi ;;
+    esac
+    [ "$ts" -ge "$SINCE" ] && [ "$ts" -le "$NOW" ] || continue
+    case "$line" in *"WAN(1)"*) n=1 ;; *) n=0 ;; esac
+    case "$line" in
+        *"link down."*)
+            drops=$((drops + 1)); last=$ts
+            eval "down_$n=\$ts" ;;
+        *"link up."*)
+            eval "d=\$down_$n"
+            if [ -n "$d" ]; then
+                dur=$((ts - d))
+                { [ -z "$longest" ] || [ "$dur" -gt "$longest" ]; } && longest=$dur
+                eval "down_$n="
+            fi ;;
+    esac
+done < "$wtmp"
+rm -f "$wtmp"
+# A drop with no "link up" after it (yet).
+for n in 0 1; do eval "d=\$down_$n"; [ -n "$d" ] && open_n="${open_n:+$open_n, }WAN($n)"; done
+fmt_dur() { if [ "$1" -lt 60 ]; then echo "${1}s"; else fmt_age "$1"; fi; }
+if [ "$drops" -eq 0 ]; then
+    echo "WAN link drops (24h): 0"
+else
+    info="last $(fmt_time "$last")"
+    [ -n "$longest" ] && info="$info, longest $(fmt_dur "$longest")"
+    [ -n "$open_n" ] && info="$info, $open_n not back up in the log"
+    echo "WAN link drops (24h): $drops ($info)"
+    t="times"; [ "$drops" -eq 1 ] && t="time"
+    add_alert "System: WAN link dropped $drops $t in 24h ($info)"
 fi
 
 # --- Load, memory, temperature
@@ -70,7 +129,9 @@ done
 
 # --- Files writable by anyone. A writable SCRIPT is dangerous (it runs as root):
 # alert. Writable DATA files (results, lists) are common - some add-ons create
-# them that way - so they are only reported, grouped by add-on.
+# them that way - so they are only reported, grouped by add-on. amtm's own files
+# are only reported too: amtm re-creates them with the shell's umask on each
+# update, and its author considers it harmless on a single-user router.
 FIND=""
 [ -x /opt/bin/find ] && FIND=/opt/bin/find   # BusyBox find may lack -perm
 if [ -n "$FIND" ]; then
@@ -78,23 +139,16 @@ if [ -n "$FIND" ]; then
     {
         "$FIND" /jffs/scripts -perm -o+w ! -type l 2>/dev/null
         "$FIND" /jffs/addons /jffs/configs -perm -o+w -type f \( -perm -u+x -o -name '*.sh' \) 2>/dev/null
-        # amtm loads (runs) its own files as root: modules (.mod), settings, email.conf...
-        "$FIND" /jffs/addons/amtm -perm -o+w -type f 2>/dev/null
-    } | sort -u > "$tmp.scripts"
-    "$FIND" /jffs/addons /jffs/configs -perm -o+w ! -type l 2>/dev/null \
+    } | grep -v '^/jffs/addons/amtm\(/\|$\)' | sort -u > "$tmp.scripts"
+    "$FIND" /jffs/addons/amtm -perm -o+w -type f 2>/dev/null > "$tmp.amtm"
+    "$FIND" /jffs/addons /jffs/configs -perm -o+w ! -type l 2>/dev/null | grep -v '^/jffs/addons/amtm\(/\|$\)' \
         | awk -v f="$tmp.scripts" 'BEGIN {while ((getline l < f) > 0) s[l]} !($0 in s)' > "$tmp.data"
     n_s=$(grep -c . "$tmp.scripts")
+    n_a=$(grep -c . "$tmp.amtm")
     n_d=$(grep -c . "$tmp.data")
+    echo "Scripts writable by anyone: $n_s"
     if [ "$n_s" -gt 0 ]; then
-        echo "Scripts writable by anyone: $n_s"
-        if grep -qv '^/jffs/addons/amtm/' "$tmp.scripts"; then
-            add_alert "System: $n_s script(s) writable by anyone - they run as root (e.g. $(grep -v '^/jffs/addons/amtm/' "$tmp.scripts" | head -1)) - fix with chmod o-w"
-        else
-            # amtm writes its files with the umask of the shell it runs in (often 000)
-            add_alert "System: $n_s amtm file(s) writable by anyone - amtm runs them as root - fix with: chmod -R o-w /jffs/addons/amtm (needed again after amtm updates)"
-        fi
-    else
-        echo "Scripts writable by anyone: 0"
+        add_alert "System: $n_s script(s) writable by anyone - they run as root (e.g. $(head -1 "$tmp.scripts")) - fix with chmod o-w"
     fi
     if [ "$n_d" -gt 0 ]; then
         # Group by add-on: /jffs/addons/spdmerlin.d/... -> spdmerlin
@@ -103,6 +157,9 @@ if [ -n "$FIND" ]; then
                    END {for (o in c) printf "%s%s %d", (n++ ? ", " : ""), o, c[o]}' "$tmp.data")
         echo "Data files writable by anyone: $n_d ($who)"
     fi
-    rm -f "$tmp.scripts" "$tmp.data"
+    [ "$n_a" -gt 0 ] && echo "amtm files writable by anyone: $n_a (amtm re-creates them on update)"
+    rm -f "$tmp.scripts" "$tmp.amtm" "$tmp.data"
+else
+    echo "Scripts writable by anyone: not checked (needs Entware's find: opkg install findutils)"
 fi
 exit 0
