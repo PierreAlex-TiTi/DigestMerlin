@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.4.0 - (in test)
+## v0.4.0 - 2026-10-22
 - New section: **Diversion** (ad blocking). Shows its version and status, the size of the blocking
   list and whether dnsmasq loads it, the last list update and the ads blocked this week (Diversion's
   daily count). Alerts when Diversion or ad blocking is off, when the list is missing, empty, not loaded or
