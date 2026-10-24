@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.5.0 - (in development)
+- **To watch** (speed tests): a download or upload 30% or more below the usual best of the same
+  interface at the same time of day gets a line under its result and is listed under the verdict
+  in SUMMARY. It is not an alert: the digest stays OK. The usual best is the 3rd best result of
+  the last 30 days within 90 minutes of the same time of day (evening results are compared with
+  evenings). DigestMerlin keeps a 30-day history of spdMerlin's results, which itself keeps only
+  10; comparisons start after 7 results of the same time of day.
+- WAN link drops and VPNMON-R3 restarts show their 7-day count when they keep coming back
+  (2 drops, 3 restarts or more in 7 days). WAN drops are remembered between digests, so the
+  count survives the rotation of the router's logs.
+
 ## v0.4.0 - 2026-10-22
 - New section: **Diversion** (ad blocking). Shows its version and status, the size of the blocking
   list and whether dnsmasq loads it, the last list update and the ads blocked this week (Diversion's

@@ -78,11 +78,28 @@ When something is wrong, the subject becomes `[ATTENTION]` and the ALERTS sectio
 |---|---|---|---|
 | Skynet | Skynet (v9 for traffic counts) | blacklist size, last list refresh, download failures, blocked inbound/outbound traffic | blacklist not loaded or halved since the last digest, lists not refreshed on schedule, download failures, log collection stalled |
 | Diversion | Diversion | version and status, blocking list size and whether dnsmasq loads it, last list update, ads blocked this week (Diversion's daily count; right after its weekly reset, last week's total) | Diversion disabled or ad blocking off, list missing, empty, not loaded or halved since the last digest, list not updated on its weekly schedule, Diversion's files on the USB drive missing |
-| VPN | WireGuard and/or OpenVPN clients; VPNMON-R3 optional | each enabled WireGuard client (endpoint, last handshake), each OpenVPN client that is running or set to start with the WAN, VPNMON-R3 restarts | interface down, no handshake for 10 min (setting) or never, OpenVPN error, still connecting, connected without its interface, or stopped while set to start with WAN, VPNMON-R3 not running |
-| Speed tests | spdMerlin | latest result per interface | no new result for 25 h (interfaces excluded from automatic tests in spdMerlin are shown, never alerted), failed tests |
+| VPN | WireGuard and/or OpenVPN clients; VPNMON-R3 optional | each enabled WireGuard client (endpoint, last handshake), each OpenVPN client that is running or set to start with the WAN, VPNMON-R3 restarts (with the 7-day count when there were 3 or more) | interface down, no handshake for 10 min (setting) or never, OpenVPN error, still connecting, connected without its interface, or stopped while set to start with WAN, VPNMON-R3 not running |
+| Speed tests | spdMerlin | latest result per interface; **To watch** when a download or upload is 30% or more below its usual best at the same time of day (see below) | no new result for 25 h (interfaces excluded from automatic tests in spdMerlin are shown, never alerted), failed tests |
 | Backups | BACKUPMON | last NVRAM / JFFS / EXT Drive (USB) backup | no BACKUPMON log or no completed NVRAM backup, last NVRAM backup older than 26 h, BACKUPMON errors |
 | New devices | DHCP (dnsmasq) | MAC addresses never seen before | a new device joined the LAN |
-| System | — (Entware `findutils` for the permission check) | firmware (and pending MerlinAU update), uptime, WAN link drops, load, memory, temperature, storage, files writable by anyone in /jffs/scripts, /jffs/addons and /jffs/configs | firmware changed, WAN link dropped, disk almost full, a script writable by anyone, CPU temperature (optional), no reboot for too long (optional) |
+| System | — (Entware `findutils` for the permission check) | firmware (and pending MerlinAU update), uptime, WAN link drops (with the 7-day count when there were 2 or more), load, memory, temperature, storage, files writable by anyone in /jffs/scripts, /jffs/addons and /jffs/configs | firmware changed, WAN link dropped, disk almost full, a script writable by anyone, CPU temperature (optional), no reboot for too long (optional) |
+
+**To watch.** Some changes are worth knowing about without being a problem yet. When a speed test
+result is 30% or more below the usual best of that interface **at the same time of day**, the digest
+adds a line under the result and lists it under the verdict in SUMMARY, for example:
+
+```
+=== SUMMARY ===
+All green.
+To watch: WGVPN1 upload -54% vs its best at this time of day
+```
+
+It is not an alert: the digest stays `[OK]`. The usual best is the 3rd best result of the last
+30 days within 90 minutes of the same time of day, so one lucky result does not become the
+reference, and evening congestion is compared with other evenings, never with mornings.
+spdMerlin keeps only its last 10 results, so DigestMerlin keeps its own 30-day history of them
+(`state/speed_<interface>.hist`, about 120 lines each). Comparisons start once 7 results of the
+same time of day are known, i.e. after about a week.
 
 ## Requirements
 

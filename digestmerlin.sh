@@ -1,7 +1,7 @@
 #!/bin/sh
 # shellcheck disable=SC2034
-version=0.4.0
-VERSION="0.4.0"
+version=0.5.0
+VERSION="0.5.0-test1"
 # Both lines above carry the same release number (a test build adds "-testN"
 # to the second only): amtm reads the first, menus of v0.2.0 read the second. Keep them on top, before any other mention.
 #
@@ -180,8 +180,9 @@ build_digest() {
     WORK="/tmp/digestmerlin.$$"
     rm -rf "$WORK"; mkdir -m 700 "$WORK" || return 1
     DM_ALERTS="$WORK/alerts"
-    : > "$DM_ALERTS"
-    export NOW WINDOW_H SINCE DM_ALERTS
+    DM_WATCH="$WORK/watch"
+    : > "$DM_ALERTS"; : > "$DM_WATCH"
+    export NOW WINDOW_H SINCE DM_ALERTS DM_WATCH
     trap 'rm -rf "$WORK" ${LOCK_HELD:+"$LOCK_HELD"}' EXIT
     trap 'rm -rf "$WORK" ${LOCK_HELD:+"$LOCK_HELD"}; exit 1' INT TERM
 
@@ -276,6 +277,11 @@ build_digest() {
     else
         tag="OK"; summary="All green."
     fi
+    # Trends to keep an eye on (not alerts: the verdict and the subject stay as they are).
+    if [ -s "$DM_WATCH" ]; then
+        summary="$summary
+$(sed 's/^/To watch: /' "$DM_WATCH")"
+    fi
     # A newer DigestMerlin on GitHub: one line at the end (no alert). Reads the
     # public version file only; nothing is sent. No answer = no line.
     upd=""
@@ -346,6 +352,8 @@ mail_style() {
     awk -v tag="$1" '
         function grey(t) { return "<span style=\"color:#59636e\">" t "</span>" }
         /^=== .* ===$/ { sec = substr($0, 5, length($0) - 8); print "<b>" sec "</b>"; next }
+        /^ *To watch: / { i = index($0, "To watch: ")
+            print "<span style=\"color:#9a6700\">" substr($0, 1, i - 1) "<b>To watch</b>: " substr($0, i + 10) "</span>"; next }
         sec == "SUMMARY" && NF {
             if (tag == "OK") print "<b style=\"color:#1a7f37\">OK</b> - " $0
             else print "<b style=\"color:#b42318\">ATTENTION</b> - " $0
