@@ -74,19 +74,27 @@ if [ -f "$VR3" ]; then
     fi
     # Log lines: "Oct 07 2026 07:34:26 host VPNMON-R3[pid] - INFO: WGC1 Connection Restarted [SEQ] - New Server: ..."
     if [ -f "$VR3LOG" ]; then
-        restarts=$(tail -1000 "$VR3LOG" | grep "Connection Restarted" | while IFS= read -r l; do
+        # Restarts of the last 7 days ("R" lines); those of the window are listed.
+        # VPNMON-R3's log carries the year, and it is kept across reboots.
+        events=$(grep "Connection Restarted" "$VR3LOG" 2>/dev/null | tail -100 | while IFS= read -r l; do
             set -f; set -- $l; set +f
             t=$(pdate "%b %d %Y %H:%M:%S" "$1 $2 $3 $4") || continue
-            [ "$t" -ge "$SINCE" ] && [ "$t" -le "$NOW" ] || continue
+            [ "$t" -gt $((NOW - 7 * 86400)) ] && [ "$t" -le "$NOW" ] || continue
+            echo "R"
+            [ "$t" -ge "$SINCE" ] || continue
             slot=$(printf '%s\n' "$l" | sed -n 's/.*INFO: \([^ ]*\) Connection Restarted.*/\1/p')
             srv=$(printf '%s\n' "$l" | sed -n 's/.* Server: //p')
             printf '  %s %s -> %s\n' "$(printf '%s' "$4" | cut -c1-5)" "$slot" "$srv"
         done)
+        restarts=$(printf '%s\n' "$events" | grep -v '^R$' | grep .)
+        n7=$(printf '%s\n' "$events" | grep -c '^R$')
+        # The 7-day count is only shown when restarts keep coming back.
+        week=""; [ "$n7" -ge 3 ] && week=" | 7 days: $n7"
         if [ -n "$restarts" ]; then
-            echo "Tunnel restarts by VPNMON-R3 (${WINDOW_H}h): $(printf '%s\n' "$restarts" | wc -l)"
+            echo "Tunnel restarts by VPNMON-R3 (${WINDOW_H}h): $(printf '%s\n' "$restarts" | wc -l)$week"
             printf '%s\n' "$restarts" | tail -5
         else
-            echo "Tunnel restarts by VPNMON-R3 (${WINDOW_H}h): 0"
+            echo "Tunnel restarts by VPNMON-R3 (${WINDOW_H}h): 0$week"
         fi
     fi
 fi

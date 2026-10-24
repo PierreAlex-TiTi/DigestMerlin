@@ -69,6 +69,8 @@ while IFS= read -r line; do
                 continue
             fi ;;
     esac
+    # Every drop of the last 7 days is remembered (the logs may not go back that far next time).
+    case "$line" in *"link down."*) [ "$ts" -gt $((NOW - 7 * 86400)) ] && [ "$ts" -le "$NOW" ] && echo "$ts" >> "$wtmp.week" ;; esac
     [ "$ts" -ge "$SINCE" ] && [ "$ts" -le "$NOW" ] || continue
     case "$line" in *"WAN(1)"*) n=1 ;; *) n=0 ;; esac
     case "$line" in
@@ -85,16 +87,27 @@ while IFS= read -r line; do
     esac
 done < "$wtmp"
 rm -f "$wtmp"
+# Drops of the last 7 days: those of earlier digests (state) + those in the logs now.
+whist="$DM_STATE/wan_drops.hist"
+n7=$({ cat "$whist" 2>/dev/null; cat "$wtmp.week" 2>/dev/null; } \
+    | awk -v cut=$((NOW - 7 * 86400)) -v now="$NOW" '/^[0-9]+$/ && $1 > cut && $1 <= now && !s[$1]++' | sort -n | tee "$wtmp.all" | grep -c .)
+if [ -z "$DM_PREVIEW" ]; then
+    # shellcheck disable=SC2174
+    mkdir -p -m 700 "$DM_STATE" 2>/dev/null && cp "$wtmp.all" "$whist.new" 2>/dev/null && mv "$whist.new" "$whist" 2>/dev/null
+fi
+rm -f "$wtmp.week" "$wtmp.all"
+# The 7-day count is only shown when drops keep coming back.
+week=""; [ "$n7" -ge 2 ] && week=" | 7 days: $n7"
 # A drop with no "link up" after it (yet).
 for n in 0 1; do eval "d=\$down_$n"; [ -n "$d" ] && open_n="${open_n:+$open_n, }WAN($n)"; done
 fmt_dur() { if [ "$1" -lt 60 ]; then echo "${1}s"; else fmt_age "$1"; fi; }
 if [ "$drops" -eq 0 ]; then
-    echo "WAN link drops (24h): 0"
+    echo "WAN link drops (24h): 0$week"
 else
     info="last $(fmt_time "$last")"
     [ -n "$longest" ] && info="$info, longest $(fmt_dur "$longest")"
     [ -n "$open_n" ] && info="$info, $open_n not back up in the log"
-    echo "WAN link drops (24h): $drops ($info)"
+    echo "WAN link drops (24h): $drops ($info)$week"
     t="times"; [ "$drops" -eq 1 ] && t="time"
     add_alert "System: WAN link dropped $drops $t in 24h ($info)"
 fi

@@ -5,6 +5,53 @@
 SPEEDTEST_MAX_AGE_H="${SPEEDTEST_MAX_AGE_H:-25}"
 [ -f /jffs/scripts/spdmerlin ] || exit 3
 
+# Trends ("To watch"): each result is compared with the usual best of the same
+# interface AT THE SAME TIME OF DAY (evening congestion would otherwise flag
+# every evening test). spdMerlin keeps only its last 10 results (lastx_*.csv),
+# so the digest keeps its own 30-day history of them (state/speed_<if>.hist).
+HIST_DAYS=30        # history kept
+SLOT_S=5400         # "same time of day" = within 90 minutes
+WATCH_RANK=3        # usual best = 3rd best result of the slot
+WATCH_MIN=7         # results needed in the slot before any comparison
+WATCH_PCT=30        # flagged when this % or more below the usual best
+
+# Merge the newest results of $1 (lastx file) into the history of interface $2.
+# Prints the merged history (ts,down,up; oldest first); saves it unless preview.
+merge_history() {
+    m_h="$DM_STATE/speed_$2.hist"
+    m_t="/tmp/digestmerlin-spd.$$"
+    { cat "$m_h" 2>/dev/null
+      awk -F, '$1 ~ /^[0-9]+$/ && $2 ~ /^[0-9.]+$/ && $3 ~ /^[0-9.]+$/ { print $1 "," $2 "," $3 }' "$1"
+    } | awk -F, -v cut=$((NOW - HIST_DAYS * 86400)) '$1 >= cut && $1 <= '"$NOW"' + 3600 && !seen[$1]++' \
+      | sort -t, -k1,1n > "$m_t" 2>/dev/null
+    cat "$m_t"
+    if [ -z "$DM_PREVIEW" ] && [ -s "$m_t" ]; then
+        # shellcheck disable=SC2174
+        mkdir -p -m 700 "$DM_STATE" 2>/dev/null && cp "$m_t" "$m_h.new" 2>/dev/null && mv "$m_h.new" "$m_h" 2>/dev/null
+    fi
+    rm -f "$m_t"
+}
+
+# Compare the result at time $1 (down $2, up $3) with the history on stdin.
+# Prints "download|upload PCT REF" for each value far below its usual best.
+compare_slot() {
+    awk -F, -v ts="$1" -v dl="$2" -v ul="$3" -v slot="$SLOT_S" -v rank="$WATCH_RANK" \
+        -v min="$WATCH_MIN" -v pct="$WATCH_PCT" '
+        function best(a, n,    i, j, t) {     # rank-th largest of a[1..n]
+            for (i = 2; i <= n; i++) { t = a[i]; for (j = i - 1; j >= 1 && a[j] < t; j--) a[j + 1] = a[j]; a[j + 1] = t }
+            return a[rank]
+        }
+        function check(what, v, a, n,    r) {
+            r = best(a, n)
+            if (r > 0 && v * 100 <= r * (100 - pct)) printf "%s %d %d\n", what, int((r - v) * 100 / r + 0.5), int(r + 0.5)
+        }
+        $1 != ts {
+            d = ($1 - ts) % 86400; if (d < 0) d += 86400; if (d > 43200) d = 86400 - d
+            if (d <= slot) { n++; D[n] = $2; U[n] = $3 }
+        }
+        END { if (n >= min) { check("download", dl, D, n); check("upload", ul, U, n) } }'
+}
+
 # Results live on JFFS or on USB, depending on spdMerlin's storage setting.
 found=0; stale=""
 for f in /jffs/addons/spdmerlin.d/lastx_*.csv /opt/share/spdmerlin.d/lastx_*.csv; do
@@ -22,6 +69,13 @@ for f in /jffs/addons/spdmerlin.d/lastx_*.csv /opt/share/spdmerlin.d/lastx_*.csv
     grep -q "^${name}[ #].*#" "${f%/*}/.interfaces_user" 2>/dev/null && excl=", excluded from automatic tests"
     grep -q '^AUTOMATICMODE=false' "${f%/*}/config" 2>/dev/null && excl=", automatic tests off"
     echo "$name: ${dl%.*} down / ${ul%.*} up Mbps, ${lat%.*} ms ($(fmt_age "$age") ago$excl)"
+    hist=$(merge_history "$f" "$name")
+    if [ -z "$excl" ] && [ "$age" -le $((SPEEDTEST_MAX_AGE_H * 3600)) ]; then
+        printf '%s\n' "$hist" | compare_slot "$ts" "$dl" "$ul" | while read -r what drop ref; do
+            echo "  To watch: $what -$drop% vs its best at this time of day ($ref Mbps)"
+            add_watch "$name $what -$drop% vs its best at this time of day"
+        done
+    fi
     if [ -z "$excl" ] && [ "$age" -gt $((SPEEDTEST_MAX_AGE_H * 3600)) ]; then
         stale="$stale $name"
     fi
