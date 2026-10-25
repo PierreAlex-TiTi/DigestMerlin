@@ -1,7 +1,7 @@
 #!/bin/sh
 # shellcheck disable=SC2034
 version=0.5.0
-VERSION="0.5.0-test1"
+VERSION="0.5.0-test2"
 # Both lines above carry the same release number (a test build adds "-testN"
 # to the second only): amtm reads the first, menus of v0.2.0 read the second. Keep them on top, before any other mention.
 #
@@ -10,6 +10,7 @@ VERSION="0.5.0-test1"
 # Read-only: it reports, it never changes the router's configuration.
 #
 #   digestmerlin.sh                  open the menu
+#   (shortcut: "digestmerlin" alone, from the SSH login after the install)
 #   digestmerlin.sh preview          build the digest and print it (no e-mail)
 #   digestmerlin.sh run              build the digest and e-mail it
 #   digestmerlin.sh section NAME     run one section (e.g. "vpn") for testing
@@ -41,6 +42,8 @@ SENDEMAIL_SCRIPT="${SENDEMAIL_SCRIPT:-/jffs/addons/SendEmail.d/SendEmail.sh}"
 CEM_LIB="${CEM_LIB:-/jffs/addons/shared-libs/CustomEMailFunctions.lib.sh}"
 AMTM_MAIL_DIR="${AMTM_MAIL_DIR:-/jffs/addons/amtm/mail}"
 CRU_ID="DigestMerlin"
+# The firmware reads this file at each SSH login: our "digestmerlin" shortcut lives there.
+PROFILE_ADD="${PROFILE_ADD:-/jffs/configs/profile.add}"
 LOGTAG="DigestMerlin"
 SECTION_TIMEOUT="${SECTION_TIMEOUT:-120}"
 RETRY_WAIT="${RETRY_WAIT:-60}"
@@ -467,9 +470,36 @@ do_unschedule() {
     say "Daily e-mail stopped. Files kept in $DM_DIR."
 }
 
-# Remove every trace: schedule, services-start line, settings, history, files.
+# Shortcut: typing "digestmerlin" opens the menu, from the next SSH login.
+# One line in profile.add, marked like the other add-ons' lines there; only
+# that line is ever touched. Never fails the caller. Prints "added" when the
+# line was written.
+SHORTCUT_RE='^alias digestmerlin=.*# DigestMerlin$'
+add_shortcut() {
+    l="alias digestmerlin=\"sh $SCRIPT_PATH\" # DigestMerlin"
+    grep -qxF "$l" "$PROFILE_ADD" 2>/dev/null && return 0
+    [ -L "$PROFILE_ADD" ] && return 0                  # a link: not ours to rewrite
+    mkdir -p "${PROFILE_ADD%/*}" 2>/dev/null || return 0
+    if [ -f "$PROFILE_ADD" ]; then
+        sed -i "/$SHORTCUT_RE/d" "$PROFILE_ADD" 2>/dev/null
+        [ -n "$(tail -c 1 "$PROFILE_ADD")" ] && echo >> "$PROFILE_ADD"   # no newline at the end
+    fi
+    printf '%s\n' "$l" >> "$PROFILE_ADD" 2>/dev/null && echo added
+    return 0
+}
+
+remove_shortcut() {
+    [ -f "$PROFILE_ADD" ] && [ ! -L "$PROFILE_ADD" ] && grep -q "$SHORTCUT_RE" "$PROFILE_ADD" || return 0
+    sed -i "/$SHORTCUT_RE/d" "$PROFILE_ADD"
+    # Nothing left (the file was created for DigestMerlin): remove it.
+    [ -z "$(grep -v '^[[:space:]]*$' "$PROFILE_ADD")" ] && rm -f "$PROFILE_ADD"
+    return 0
+}
+
+# Remove every trace: schedule, services-start line, shortcut, settings, history, files.
 do_remove_all() {
     do_unschedule >/dev/null
+    remove_shortcut
     rm -rf "$DM_DIR" /tmp/digestmerlin.* /tmp/digestmerlin-*
     rm -f "$SCRIPT_PATH"
     log "DigestMerlin removed"
@@ -610,6 +640,7 @@ do_update() {
     new=$(sed -n 's/^VERSION="\(.*\)"$/\1/p' "$SCRIPT_PATH" | head -1)
     rm -rf "$tmp"
     log "Installed v$new (was v${old:-?})"
+    add_shortcut >/dev/null
     say "DigestMerlin v$new installed."
     return 0
 }
@@ -634,7 +665,8 @@ do_setup() {
     fi
     say ""
     say "Open the menu (preview, send time, sections, settings...):"
-    say "    sh $SCRIPT_PATH"
+    say "    digestmerlin            (from your next SSH login)"
+    say "    sh $SCRIPT_PATH   (now)"
 }
 
 # ---------------------------------------------------------------- menu
@@ -731,6 +763,7 @@ menu_header() {
     say "   Sections     : $((n_all - n_off)) of $n_all enabled"
     [ -n "$CONF_BROKEN" ] && say "   WARNING      : settings file has a syntax error - defaults in use"
     [ "$n_all" -eq 0 ] && say "   WARNING      : no section installed - use option 6 to reinstall"
+    [ "$SHORTCUT_NEW" = "added" ] && say "   New          : type 'digestmerlin' to open this menu (next SSH login)"
     case "$(mail_method)" in
         none)
             say " -----------------------------------------------"
@@ -921,6 +954,8 @@ menu_uninstall() {
 }
 
 menu() {
+    # Users updating from v0.4 get the shortcut the first time they open the menu.
+    SHORTCUT_NEW=$(add_shortcut)
     while :; do
         menu_header
         say "   1. Preview the digest (nothing is sent)"
