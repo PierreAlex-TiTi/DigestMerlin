@@ -5,6 +5,7 @@
 DISK_ALERT_PCT="${DISK_ALERT_PCT:-90}"
 REBOOT_MAX_DAYS="${REBOOT_MAX_DAYS:-}"   # empty = no reboot check
 CPU_TEMP_ALERT="${CPU_TEMP_ALERT:-}"     # empty = no temperature alert
+WAN_PLANNED="${WAN_PLANNED:-}"           # e.g. "Sun 03:00-03:10": planned WAN drops, no alert
 
 # --- Firmware, and whether it changed since the last digest
 fw="$(nv firmver | tr -d '.').$(nv buildno)_$(nv extendno)"
@@ -46,8 +47,35 @@ fi
 # ("Jan  1" east of UTC, "Dec 31" west of it): they belong to the boot itself,
 # which is shown above, and are skipped.
 boot=""; is_number "$up" && boot=$((NOW - up))
+# Planned window (e.g. a weekly modem reboot): drops that START in it are shown
+# apart and raise no alert; they are not counted in the 7-day total either.
+# "Sun 03:00-03:10" or "daily 04:00-04:15", router local time; a window may
+# cross midnight. An invalid value is ignored (the main script reports it).
+pw_day=""; pw_s=""; pw_e=""
+if echo "$WAN_PLANNED" | grep -E -i -q '^(mon|tue|wed|thu|fri|sat|sun|daily) ([01][0-9]|2[0-3]):[0-5][0-9]-([01][0-9]|2[0-3]):[0-5][0-9]$'; then
+    case $(echo "${WAN_PLANNED%% *}" | tr 'A-Z' 'a-z') in
+        daily) pw_day=0 ;; mon) pw_day=1 ;; tue) pw_day=2 ;; wed) pw_day=3 ;;
+        thu) pw_day=4 ;; fri) pw_day=5 ;; sat) pw_day=6 ;; sun) pw_day=7 ;;
+    esac
+    r=${WAN_PLANNED#* }; a=${r%-*}; b=${r#*-}
+    pw_s=$(( ${a%:*} * 60 + ${a#*:} )); pw_e=$(( ${b%:*} * 60 + ${b#*:} ))
+fi
+# 0 if the epoch $1 falls in the planned window.
+in_planned() {
+    [ -n "$pw_s" ] || return 1
+    set -- $(date -d "@$1" '+%u %H %M' 2>/dev/null)
+    [ $# -eq 3 ] || return 1
+    _m=$(( ${2#0} * 60 + ${3#0} )); _d=$1; _p=$(( _d == 1 ? 7 : _d - 1 ))   # _p: the day before
+    if [ "$pw_s" -le "$pw_e" ]; then
+        [ "$_m" -ge "$pw_s" ] && [ "$_m" -le "$pw_e" ] && { [ "$pw_day" = 0 ] || [ "$pw_day" = "$_d" ]; }
+    else    # crosses midnight: the part after midnight belongs to the day before
+        { [ "$_m" -ge "$pw_s" ] && { [ "$pw_day" = 0 ] || [ "$pw_day" = "$_d" ]; }; } \
+            || { [ "$_m" -le "$pw_e" ] && { [ "$pw_day" = 0 ] || [ "$pw_day" = "$_p" ]; }; }
+    fi
+}
 drops=0; last=""; longest=""; open_n=""
-for n in 0 1; do eval "down_$n="; done
+planned=0; plast=""; plongest=""; popen_n=""
+for n in 0 1; do eval "down_$n= plan_$n="; done
 wtmp="/tmp/digestmerlin-wan.$$"
 read_logs | grep -E 'WAN_Connection: WAN\([01]\) link (down|up)\.' > "$wtmp"
 while IFS= read -r line; do
@@ -70,19 +98,27 @@ while IFS= read -r line; do
             fi ;;
     esac
     # Every drop of the last 7 days is remembered (the logs may not go back that far next time).
-    case "$line" in *"link down."*) [ "$ts" -gt $((NOW - 7 * 86400)) ] && [ "$ts" -le "$NOW" ] && echo "$ts" >> "$wtmp.week" ;; esac
+    case "$line" in *"link down."*) [ "$ts" -gt $((NOW - 7 * 86400)) ] && [ "$ts" -le "$NOW" ] && ! in_planned "$ts" && echo "$ts" >> "$wtmp.week" ;; esac
     [ "$ts" -ge "$SINCE" ] && [ "$ts" -le "$NOW" ] || continue
     case "$line" in *"WAN(1)"*) n=1 ;; *) n=0 ;; esac
     case "$line" in
         *"link down."*)
-            drops=$((drops + 1)); last=$ts
+            if in_planned "$ts"; then
+                planned=$((planned + 1)); plast=$ts; eval "plan_$n=1"
+            else
+                drops=$((drops + 1)); last=$ts; eval "plan_$n="
+            fi
             eval "down_$n=\$ts" ;;
         *"link up."*)
-            eval "d=\$down_$n"
+            eval "d=\$down_$n; pl=\$plan_$n"
             if [ -n "$d" ]; then
                 dur=$((ts - d))
-                { [ -z "$longest" ] || [ "$dur" -gt "$longest" ]; } && longest=$dur
-                eval "down_$n="
+                if [ -n "$pl" ]; then
+                    { [ -z "$plongest" ] || [ "$dur" -gt "$plongest" ]; } && plongest=$dur
+                else
+                    { [ -z "$longest" ] || [ "$dur" -gt "$longest" ]; } && longest=$dur
+                fi
+                eval "down_$n= plan_$n="
             fi ;;
     esac
 done < "$wtmp"
@@ -98,19 +134,31 @@ fi
 rm -f "$wtmp.week" "$wtmp.all"
 # The 7-day count is only shown when drops keep coming back.
 week=""; [ "$n7" -ge 2 ] && week=" | 7 days: $n7"
-# A drop with no "link up" after it (yet).
-for n in 0 1; do eval "d=\$down_$n"; [ -n "$d" ] && open_n="${open_n:+$open_n, }WAN($n)"; done
+# A drop with no "link up" after it (yet) - an alert even in the planned window.
+for n in 0 1; do
+    eval "d=\$down_$n; pl=\$plan_$n"
+    [ -n "$d" ] || continue
+    if [ -n "$pl" ]; then popen_n="${popen_n:+$popen_n, }WAN($n)"; else open_n="${open_n:+$open_n, }WAN($n)"; fi
+done
 fmt_dur() { if [ "$1" -lt 60 ]; then echo "${1}s"; else fmt_age "$1"; fi; }
+pinfo=""
+if [ "$planned" -gt 0 ]; then
+    pinfo="last $(fmt_time "$plast")"
+    [ -n "$plongest" ] && pinfo="$pinfo, longest $(fmt_dur "$plongest")"
+    [ -n "$popen_n" ] && pinfo="$pinfo, $popen_n not back up in the log"
+    pinfo=" | planned ($WAN_PLANNED): $planned ($pinfo)"
+fi
 if [ "$drops" -eq 0 ]; then
-    echo "WAN link drops (24h): 0$week"
+    echo "WAN link drops (24h): 0$pinfo$week"
 else
     info="last $(fmt_time "$last")"
     [ -n "$longest" ] && info="$info, longest $(fmt_dur "$longest")"
     [ -n "$open_n" ] && info="$info, $open_n not back up in the log"
-    echo "WAN link drops (24h): $drops ($info)$week"
+    echo "WAN link drops (24h): $drops ($info)$pinfo$week"
     t="times"; [ "$drops" -eq 1 ] && t="time"
     add_alert "System: WAN link dropped $drops $t in 24h ($info)"
 fi
+[ -n "$popen_n" ] && add_alert "System: $popen_n not back up after a drop in the planned window ($WAN_PLANNED)"
 
 # --- Load, memory, temperature
 load=$(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null)
