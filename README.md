@@ -129,6 +129,10 @@ Then open the menu (option 1 previews the digest without sending anything):
 sh /jffs/scripts/digestmerlin.sh
 ```
 
+From your next SSH login, typing `digestmerlin` is enough: DigestMerlin adds one line, marked
+`# DigestMerlin`, to `/jffs/configs/profile.add`, the file the firmware reads at each login (other
+add-ons put their shortcuts there too).
+
 If you use IOCMON, it reports DigestMerlin's files, its services-start line and its cron job
 after installing or updating: this is expected.
 
@@ -140,8 +144,10 @@ again. Your settings, history and schedule are always kept.
 Open the menu:
 
 ```sh
-sh /jffs/scripts/digestmerlin.sh
+digestmerlin
 ```
+
+(or `sh /jffs/scripts/digestmerlin.sh`, e.g. in your first session after installing).
 
 ![DigestMerlin menu](menu.png)
 
@@ -271,7 +277,7 @@ Menu option 7, or:
 sh /jffs/scripts/digestmerlin.sh uninstall
 ```
 
-Both ask first, then remove everything: schedule, settings, history and files - including any section
+Both ask first, then remove everything: schedule, `digestmerlin` shortcut, settings, history and files - including any section
 you added in `/jffs/addons/digestmerlin.d/sections/` (copy it elsewhere first if you want to keep it).
 
 ## License

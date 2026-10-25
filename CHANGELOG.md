@@ -10,6 +10,9 @@
 - WAN link drops and VPNMON-R3 restarts show their 7-day count when they keep coming back
   (2 drops, 3 restarts or more in 7 days). WAN drops are remembered between digests, so the
   count survives the rotation of the router's logs.
+- Shortcut: type `digestmerlin` to open the menu (from the next SSH login). One line, marked
+  `# DigestMerlin`, is added to `/jffs/configs/profile.add` on install, on update, or the first time
+  the menu is opened after updating from v0.4; uninstalling removes it.
 
 ## v0.4.0 - 2026-10-22
 - New section: **Diversion** (ad blocking). Shows its version and status, the size of the blocking
