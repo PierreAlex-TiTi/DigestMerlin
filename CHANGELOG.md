@@ -13,6 +13,9 @@
 - Shortcut: type `digestmerlin` to open the menu (from the next SSH login). One line, marked
   `# DigestMerlin`, is added to `/jffs/configs/profile.add` on install, on update, or the first time
   the menu is opened after updating from v0.4; uninstalling removes it.
+- Skynet: when its malware lists refresh at a random hour (Skynet's default, "auto"), the alert now
+  waits 48h instead of 26h. Skynet draws a new hour each time it starts or updates, so two daily
+  refreshes can be up to 46h apart without anything wrong. With a fixed hour, 26h as before.
 
 ## v0.4.0 - 2026-10-22
 - New section: **Diversion** (ad blocking). Shows its version and status, the size of the blocking
