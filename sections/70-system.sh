@@ -98,7 +98,7 @@ while IFS= read -r line; do
             fi ;;
     esac
     # Every drop of the last 7 days is remembered (the logs may not go back that far next time).
-    case "$line" in *"link down."*) [ "$ts" -gt $((NOW - 7 * 86400)) ] && [ "$ts" -le "$NOW" ] && ! in_planned "$ts" && echo "$ts" >> "$wtmp.week" ;; esac
+    case "$line" in *"link down."*) [ "$ts" -gt $((NOW - 7 * 86400)) ] && [ "$ts" -le "$NOW" ] && echo "$ts" >> "$wtmp.week" ;; esac
     [ "$ts" -ge "$SINCE" ] && [ "$ts" -le "$NOW" ] || continue
     case "$line" in *"WAN(1)"*) n=1 ;; *) n=0 ;; esac
     case "$line" in
@@ -125,8 +125,11 @@ done < "$wtmp"
 rm -f "$wtmp"
 # Drops of the last 7 days: those of earlier digests (state) + those in the logs now.
 whist="$DM_STATE/wan_drops.hist"
-n7=$({ cat "$whist" 2>/dev/null; cat "$wtmp.week" 2>/dev/null; } \
-    | awk -v cut=$((NOW - 7 * 86400)) -v now="$NOW" '/^[0-9]+$/ && $1 > cut && $1 <= now && !s[$1]++' | sort -n | tee "$wtmp.all" | grep -c .)
+{ cat "$whist" 2>/dev/null; cat "$wtmp.week" 2>/dev/null; } \
+    | awk -v cut=$((NOW - 7 * 86400)) -v now="$NOW" '/^[0-9]+$/ && $1 > cut && $1 <= now && !s[$1]++' | sort -n > "$wtmp.all"
+# Drops in the planned window are kept in the history but never counted, also
+# those recorded before the window was set (or when it changes).
+n7=$(while read -r t; do in_planned "$t" || echo "$t"; done < "$wtmp.all" | grep -c .)
 if [ -z "$DM_PREVIEW" ]; then
     # shellcheck disable=SC2174
     mkdir -p -m 700 "$DM_STATE" 2>/dev/null && cp "$wtmp.all" "$whist.new" 2>/dev/null && mv "$whist.new" "$whist" 2>/dev/null
