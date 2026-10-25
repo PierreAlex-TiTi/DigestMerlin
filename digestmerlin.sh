@@ -1,7 +1,7 @@
 #!/bin/sh
 # shellcheck disable=SC2034
 version=0.5.0
-VERSION="0.5.0-test4"
+VERSION="0.5.0-test5"
 # Both lines above carry the same release number (a test build adds "-testN"
 # to the second only): amtm reads the first, menus of v0.2.0 read the second. Keep them on top, before any other mention.
 #
@@ -855,7 +855,7 @@ menu_settings() {
             i=$((i + 1))
             v=$(conf_get "$key"); [ -f "$DM_CONF" ] && grep -q "^$key=" "$DM_CONF" || v=$def
             case "$kind" in text|window) none="none" ;; *) none="off" ;; esac
-            printf '   %d. %-44s [%s]\n' "$i" "$desc" "${v:-$none}"
+            printf '  %2d. %-44s [%s]\n' "$i" "$desc" "${v:-$none}"
         done
         say ""
         say "   b. Back"
