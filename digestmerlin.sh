@@ -1,7 +1,7 @@
 #!/bin/sh
 # shellcheck disable=SC2034
 version=0.5.0
-VERSION="0.5.0-test3"
+VERSION="0.5.0-test4"
 # Both lines above carry the same release number (a test build adds "-testN"
 # to the second only): amtm reads the first, menus of v0.2.0 read the second. Keep them on top, before any other mention.
 #
@@ -92,6 +92,11 @@ setting_range() {
     esac
 }
 
+# WAN_PLANNED: "Sun 03:00-03:10" or "daily 04:00-04:15" (day in English, 24-hour times).
+valid_wan_window() {
+    echo "$1" | grep -E -i -q '^(mon|tue|wed|thu|fri|sat|sun|daily) ([01][0-9]|2[0-3]):[0-5][0-9]-([01][0-9]|2[0-3]):[0-5][0-9]$'
+}
+
 DM_NUM_SETTINGS="WG_HANDSHAKE_MAX SPEEDTEST_MAX_AGE_H BACKUP_MAX_AGE_H DISK_ALERT_PCT CPU_TEMP_ALERT REBOOT_MAX_DAYS DEVICES_IGNORE_PRIVATE_MAC UPDATE_CHECK"
 load_conf() {
     CONF_BROKEN=""; CONF_INVALID=""
@@ -132,6 +137,11 @@ load_conf() {
         fi
         eval "$k=\$n"
     done
+    if [ -n "$WAN_PLANNED" ] && ! valid_wan_window "$WAN_PLANNED"; then
+        CONF_INVALID="${CONF_INVALID}WAN_PLANNED=$WAN_PLANNED (expected e.g. Sun 03:00-03:10)
+"
+        unset WAN_PLANNED
+    fi
 }
 load_conf
 export DM_DIR DM_CONF DM_STATE
@@ -673,7 +683,7 @@ do_setup() {
 # The menu only calls the commands above and edits digestmerlin.conf.
 
 # Settings offered in the menu:
-# KEY|default|label|kind (num, opt = number or off, bool, text)|explanation|example
+# KEY|default|label|kind (num, opt = number or off, bool, text, window)|explanation|example
 SETTINGS="WG_HANDSHAKE_MAX|600|VPN: seconds without a WireGuard handshake|num|Alert when a WireGuard tunnel has had no handshake for this long (seconds).|600 = 10 minutes
 SPEEDTEST_MAX_AGE_H|25|spdMerlin: hours without a new result|num|Alert when spdMerlin has not produced a new result for this many hours.|25 for a daily test
 BACKUP_MAX_AGE_H|26|BACKUPMON: hours since the last NVRAM backup|num|Alert when the last BACKUPMON NVRAM backup is older than this (hours).|26 for a daily backup
@@ -682,7 +692,8 @@ CPU_TEMP_ALERT||CPU temperature in C|opt|Alert when the CPU reaches this tempera
 REBOOT_MAX_DAYS||Days without a reboot|opt|Alert when the router has been running longer than this (days).|8 for a weekly reboot
 DEVICES_IGNORE_PRIVATE_MAC|0|New devices: ignore private MACs (0 or 1)|bool|1 = do not report devices using a random private MAC address (phones, laptops).|0 to report them, 1 to ignore them
 SUBJECT_PREFIX||Text in front of the e-mail subject|text|Added in front of the subject, e.g. to tell several routers apart.|[Home]
-UPDATE_CHECK|1|Update check in the digest (0 or 1)|bool|1 = the digest says when a new DigestMerlin version is on GitHub (one check per digest, nothing is sent).|1 to check, 0 to never check"
+UPDATE_CHECK|1|Update check in the digest (0 or 1)|bool|1 = the digest says when a new DigestMerlin version is on GitHub (one check per digest, nothing is sent).|1 to check, 0 to never check
+WAN_PLANNED||WAN: planned drops window (shown, no alert)|window|WAN drops that start in this window are still shown, but raise no alert - e.g. during a scheduled modem reboot. A day (Mon...Sun, or daily) and a time range, router time.|Sun 03:00-03:10"
 
 pause() { printf '\n Press Enter to continue... '; read -r _ || exit 0; }
 
@@ -843,7 +854,7 @@ menu_settings() {
         printf '%s\n' "$SETTINGS" | while IFS='|' read -r key def desc kind _help _ex; do
             i=$((i + 1))
             v=$(conf_get "$key"); [ -f "$DM_CONF" ] && grep -q "^$key=" "$DM_CONF" || v=$def
-            [ "$kind" = "text" ] && none="none" || none="off"
+            case "$kind" in text|window) none="none" ;; *) none="off" ;; esac
             printf '   %d. %-44s [%s]\n' "$i" "$desc" "${v:-$none}"
         done
         say ""
@@ -859,7 +870,7 @@ menu_settings() {
         IFS='|' read -r key def desc kind help ex <<EOF_LINE
 $line
 EOF_LINE
-        [ "$kind" = "text" ] && none="none" || none="off"
+        case "$kind" in text|window) none="none" ;; *) none="off" ;; esac
         cur=$(conf_get "$key"); [ -f "$DM_CONF" ] && grep -q "^$key=" "$DM_CONF" || cur=$def
         printf '\033[2J\033[H'
         say " ${desc%% (*}"
@@ -873,6 +884,7 @@ EOF_LINE
             opt)  printf ' New value (a number), "off" to disable, Enter to keep the current value: ' ;;
             bool) printf ' New value (0 or 1), Enter to keep the current value: ' ;;
             text) printf ' New text, "none" to remove it, Enter to keep the current value: ' ;;
+            window) printf ' New window (e.g. Sun 03:00-03:10), "none" to remove it, Enter to keep the current value: ' ;;
         esac
         read -r val || exit 0
         [ -n "$val" ] || continue
@@ -892,6 +904,8 @@ EOF_LINE
                     fi
                 fi ;;
             bool) case "$val" in 0|1) ;; *) say " Please enter 0 or 1."; pause; continue ;; esac ;;
+            window) [ "$val" = "none" ] && val=""
+                  [ -z "$val" ] || valid_wan_window "$val" || { say " Please enter a day and a time range, e.g. Sun 03:00-03:10 or daily 04:00-04:15."; pause; continue; } ;;
             text) [ "$val" = "none" ] && val=""
                   case "$val" in *[\"\\\$\`\'=]*|-*) say ' Not allowed: " \ $ ` = and apostrophes, or a leading -'; pause; continue ;; esac ;;
         esac
