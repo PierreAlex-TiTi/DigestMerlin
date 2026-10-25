@@ -16,6 +16,9 @@
 - Skynet: when its malware lists refresh at a random hour (Skynet's default, "auto"), the alert now
   waits 48h instead of 26h. Skynet draws a new hour each time it starts or updates, so two daily
   refreshes can be up to 46h apart without anything wrong. With a fixed hour, 26h as before.
+- New setting `WAN_PLANNED` (menu 5.10), e.g. `Sun 03:00-03:10`: WAN drops that start in this
+  window - a scheduled modem reboot - are shown apart and raise no alert. Drops outside it, or a link
+  that does not come back up, still do. Planned drops are left out of the 7-day count.
 
 ## v0.4.0 - 2026-10-22
 - New section: **Diversion** (ad blocking). Shows its version and status, the size of the blocking

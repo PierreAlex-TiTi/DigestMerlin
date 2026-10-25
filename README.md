@@ -82,7 +82,7 @@ When something is wrong, the subject becomes `[ATTENTION]` and the ALERTS sectio
 | Speed tests | spdMerlin | latest result per interface; **To watch** when a download or upload is 30% or more below its usual best at the same time of day (see below) | no new result for 25 h (interfaces excluded from automatic tests in spdMerlin are shown, never alerted), failed tests |
 | Backups | BACKUPMON | last NVRAM / JFFS / EXT Drive (USB) backup | no BACKUPMON log or no completed NVRAM backup, last NVRAM backup older than 26 h, BACKUPMON errors |
 | New devices | DHCP (dnsmasq) | MAC addresses never seen before | a new device joined the LAN |
-| System | — (Entware `findutils` for the permission check) | firmware (and pending MerlinAU update), uptime, WAN link drops (with the 7-day count when there were 2 or more), load, memory, temperature, storage, files writable by anyone in /jffs/scripts, /jffs/addons and /jffs/configs | firmware changed, WAN link dropped, disk almost full, a script writable by anyone, CPU temperature (optional), no reboot for too long (optional) |
+| System | — (Entware `findutils` for the permission check) | firmware (and pending MerlinAU update), uptime, WAN link drops (with the 7-day count when there were 2 or more), load, memory, temperature, storage, files writable by anyone in /jffs/scripts, /jffs/addons and /jffs/configs | firmware changed, WAN link dropped (outside a planned window, see Settings), disk almost full, a script writable by anyone, CPU temperature (optional), no reboot for too long (optional) |
 
 **To watch.** Some changes are worth knowing about without being a problem yet. When a speed test
 result is 30% or more below the usual best of that interface **at the same time of day**, the digest
@@ -205,6 +205,7 @@ The easiest way to change them is the menu: option 4 for the sections, option 5 
 | `DEVICES_IGNORE_PRIVATE_MAC` | 5.7 | 0 | `1` = do not report devices using a random "private" MAC address (phones, laptops). |
 | `SUBJECT_PREFIX` | 5.8 | (none) | Text added in front of the e-mail subject. See below. |
 | `UPDATE_CHECK` | 5.9 | 1 | `1` = the digest tells you when a new DigestMerlin version is on GitHub. See below. |
+| `WAN_PLANNED` | 5.10 | (none) | A window when WAN drops are expected, e.g. `"Sun 03:00-03:10"`: they are shown, but raise no alert. See below. |
 
 **Why two alerts are off by default.** The temperature is shown in the SYSTEM section when the router reports it (no temperature shown means no temperature alert is possible),
 but what is normal depends on the model: around 65C on some routers, 80C or more on others. A fixed
@@ -221,6 +222,17 @@ In the menu, type `none` to remove it.
 (the same check as menu option 6). When a newer one exists, a line at the end of the e-mail says so;
 it is not an alert. Nothing is sent: it only reads a public file. If GitHub does not answer, the
 line is simply left out. `0` turns the check off.
+
+**Planned WAN drops.** If your modem or ONT is rebooted on a schedule, its WAN drops are real but
+expected. Set the window (a day - `Mon`...`Sun`, or `daily` - and a time range, router time) and the
+drops that start in it are shown apart, without an alert:
+
+```
+WAN link drops (24h): 0 | planned (Sun 03:00-03:10): 2 (last Sun 25 Oct 03:03, longest 56s)
+```
+
+A drop outside the window is still an alert, and so is a link that does not come back up. Planned
+drops are not counted in the 7-day total. In the menu, type `none` to remove the window.
 
 **Editing by hand.** The settings live in `/jffs/addons/digestmerlin.d/digestmerlin.conf`
 (created by the menu on the first change). Without the menu, create it from the sample and edit it:
