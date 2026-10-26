@@ -200,13 +200,27 @@ FIND=""
 [ -x /opt/bin/find ] && FIND=/opt/bin/find   # BusyBox find may lack -perm
 if [ -n "$FIND" ]; then
     tmp="/tmp/digestmerlin-ww.$$"
+    # In /jffs/scripts, a script is what can run: a folder (anyone could drop a
+    # script in it), an executable, a .sh file or a file starting with "#!".
+    # Anything else there (a log, a list, a state file) is data.
+    : > "$tmp.sdata"
+    "$FIND" /jffs/scripts -perm -o+w ! -type l 2>/dev/null | while IFS= read -r f; do
+        first=""; [ -f "$f" ] && IFS= read -r first < "$f" 2>/dev/null
+        case "$f" in *.sh) first="#!" ;; esac
+        if [ -d "$f" ] || [ -x "$f" ] || case "$first" in '#!'*) true ;; *) false ;; esac; then
+            echo "$f"
+        else
+            echo "$f" >> "$tmp.sdata"
+        fi
+    done > "$tmp.s1"
     {
-        "$FIND" /jffs/scripts -perm -o+w ! -type l 2>/dev/null
+        cat "$tmp.s1"
         "$FIND" /jffs/addons /jffs/configs -perm -o+w -type f \( -perm -u+x -o -name '*.sh' \) 2>/dev/null
     } | grep -v '^/jffs/addons/amtm\(/\|$\)' | sort -u > "$tmp.scripts"
     "$FIND" /jffs/addons/amtm -perm -o+w -type f 2>/dev/null > "$tmp.amtm"
     "$FIND" /jffs/addons /jffs/configs -perm -o+w ! -type l 2>/dev/null | grep -v '^/jffs/addons/amtm\(/\|$\)' \
         | awk -v f="$tmp.scripts" 'BEGIN {while ((getline l < f) > 0) s[l]} !($0 in s)' > "$tmp.data"
+    cat "$tmp.sdata" >> "$tmp.data"
     n_s=$(grep -c . "$tmp.scripts")
     n_a=$(grep -c . "$tmp.amtm")
     n_d=$(grep -c . "$tmp.data")
@@ -216,13 +230,14 @@ if [ -n "$FIND" ]; then
     fi
     if [ "$n_d" -gt 0 ]; then
         # Group by add-on: /jffs/addons/spdmerlin.d/... -> spdmerlin
-        who=$(awk '{p = $0; sub(/^\/jffs\/(addons|configs)\/?/, "", p); split(p, a, "/");
+        who=$(awk '{p = $0; if (p ~ /^\/jffs\/scripts\//) {c["/jffs/scripts"]++; next}
+                    sub(/^\/jffs\/(addons|configs)\/?/, "", p); split(p, a, "/");
                     o = a[1]; sub(/\.d$/, "", o); if (o == "") o = "configs"; c[o]++}
                    END {for (o in c) printf "%s%s %d", (n++ ? ", " : ""), o, c[o]}' "$tmp.data")
         echo "Data files writable by anyone: $n_d ($who)"
     fi
     [ "$n_a" -gt 0 ] && echo "amtm files writable by anyone: $n_a (amtm re-creates them on update)"
-    rm -f "$tmp.scripts" "$tmp.amtm" "$tmp.data"
+    rm -f "$tmp.scripts" "$tmp.amtm" "$tmp.data" "$tmp.sdata" "$tmp.s1"
 else
     echo "Scripts writable by anyone: not checked (needs Entware's find: opkg install findutils)"
 fi
