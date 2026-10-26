@@ -19,6 +19,9 @@
 - New setting `WAN_PLANNED` (menu 5.10), e.g. `Sun 03:00-03:10`: WAN drops that start in this
   window - a scheduled modem reboot - are shown apart and raise no alert. Drops outside it, or a link
   that does not come back up, still do. Planned drops are left out of the 7-day count.
+- SYSTEM: in `/jffs/scripts`, only what can run is counted as a script (a folder, an executable, a
+  `.sh` file or a file starting with `#!`). A log or a list kept there by another script is now
+  reported with the data files, without an alert.
 
 ## v0.4.0 - 2026-10-22
 - New section: **Diversion** (ad blocking). Shows its version and status, the size of the blocking
