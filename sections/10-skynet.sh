@@ -33,8 +33,16 @@ state_set skynet_ips "$ips"
 # Malware list refresh: schedule and age come from Skynet's own settings.
 freq=$(cfg_get banmalwareupdate)
 last=$(cfg_get banmalwarelastupdated)
+# With banmalwarehour "auto" (Skynet's default, also when missing), Skynet picks
+# a new random hour (1-23) each time it re-creates its cron job (start, update):
+# two daily refreshes can then be up to 46h apart. A fixed hour (0-23) keeps
+# 24h. Any other value is read as "auto", as Skynet itself does.
+hour=$(cfg_get banmalwarehour)
 case "$freq" in
-    daily)  max_age=$((26 * 3600)) ;;
+    daily)  case "$hour" in
+                [0-9]|1[0-9]|2[0-3]) max_age=$((26 * 3600)) ;;
+                *)                   max_age=$((48 * 3600)) ;;
+            esac ;;
     weekly) max_age=$((8 * 86400)) ;;
     *)      max_age="" ;;
 esac

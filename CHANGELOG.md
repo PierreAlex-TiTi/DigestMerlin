@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.5.0 - 2026-10-30
+- **To watch** (speed tests): a download or upload 30% or more below the usual best of the same
+  interface at the same time of day gets a line under its result and is listed under the verdict
+  in SUMMARY. It is not an alert: the digest stays OK. The usual best is the 3rd best result of
+  the last 30 days within 90 minutes of the same time of day (evening results are compared with
+  evenings). DigestMerlin keeps a 30-day history of spdMerlin's results, which itself keeps only
+  10; comparisons start after 7 results of the same time of day. A VPN tunnel is only compared
+  with its results on the same VPN server.
+- WAN link drops and VPNMON-R3 restarts show their 7-day count when they keep coming back
+  (2 drops, 3 restarts or more in 7 days). WAN drops are remembered between digests, so the
+  count survives the rotation of the router's logs.
+- Shortcut: type `digestmerlin` to open the menu (from the next SSH login). One line, marked
+  `# DigestMerlin`, is added to `/jffs/configs/profile.add` on install, on update, or the first time
+  the menu is opened after updating from v0.4; uninstalling removes it.
+- Skynet: when its malware lists refresh at a random hour (Skynet's default, "auto"), the alert now
+  waits 48h instead of 26h. Skynet draws a new hour each time it starts or updates, so two daily
+  refreshes can be up to 46h apart without anything wrong. With a fixed hour, 26h as before.
+- New setting `WAN_PLANNED` (menu 5.10), e.g. `Sun 03:00-03:10`: WAN drops that start in this
+  window - a scheduled modem reboot - are shown apart and raise no alert. Drops outside it, or a link
+  that does not come back up, still do. Planned drops are left out of the 7-day count.
+- SYSTEM: in `/jffs/scripts`, only what can run is counted as a script (a folder, an executable, a
+  `.sh` file or a file starting with `#!`). A log or a list kept there by another script is now
+  reported with the data files, without an alert.
+
 ## v0.4.0 - 2026-10-22
 - New section: **Diversion** (ad blocking). Shows its version and status, the size of the blocking
   list and whether dnsmasq loads it, the last list update and the ads blocked this week (Diversion's

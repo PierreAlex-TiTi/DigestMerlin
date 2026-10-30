@@ -111,6 +111,16 @@ add_alert() {
     fi
 }
 
+# Something to keep an eye on, not an alert: listed under the verdict in
+# SUMMARY ("To watch: ..."); the digest stays OK.
+add_watch() {
+    if [ -n "$DM_WATCH" ]; then
+        printf '%s\n' "$1" >> "$DM_WATCH"
+    else
+        printf 'WATCH: %s\n' "$1" >&2
+    fi
+}
+
 # Small persistent values kept between runs (one file per key).
 state_get() {
     cat "$DM_STATE/$1" 2>/dev/null

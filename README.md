@@ -66,7 +66,7 @@ None
 
 Generated 2026-10-12 22:36 - covers the last 24h
 Sections: 7 OK
-DigestMerlin v0.4.0
+DigestMerlin v0.5.0
 ```
 
 When something is wrong, the subject becomes `[ATTENTION]` and the ALERTS section says what, e.g.
@@ -78,11 +78,31 @@ When something is wrong, the subject becomes `[ATTENTION]` and the ALERTS sectio
 |---|---|---|---|
 | Skynet | Skynet (v9 for traffic counts) | blacklist size, last list refresh, download failures, blocked inbound/outbound traffic | blacklist not loaded or halved since the last digest, lists not refreshed on schedule, download failures, log collection stalled |
 | Diversion | Diversion | version and status, blocking list size and whether dnsmasq loads it, last list update, ads blocked this week (Diversion's daily count; right after its weekly reset, last week's total) | Diversion disabled or ad blocking off, list missing, empty, not loaded or halved since the last digest, list not updated on its weekly schedule, Diversion's files on the USB drive missing |
-| VPN | WireGuard and/or OpenVPN clients; VPNMON-R3 optional | each enabled WireGuard client (endpoint, last handshake), each OpenVPN client that is running or set to start with the WAN, VPNMON-R3 restarts | interface down, no handshake for 10 min (setting) or never, OpenVPN error, still connecting, connected without its interface, or stopped while set to start with WAN, VPNMON-R3 not running |
-| Speed tests | spdMerlin | latest result per interface | no new result for 25 h (interfaces excluded from automatic tests in spdMerlin are shown, never alerted), failed tests |
+| VPN | WireGuard and/or OpenVPN clients; VPNMON-R3 optional | each enabled WireGuard client (endpoint, last handshake), each OpenVPN client that is running or set to start with the WAN, VPNMON-R3 restarts (with the 7-day count when there were 3 or more) | interface down, no handshake for 10 min (setting) or never, OpenVPN error, still connecting, connected without its interface, or stopped while set to start with WAN, VPNMON-R3 not running |
+| Speed tests | spdMerlin | latest result per interface; **To watch** when a download or upload is 30% or more below its usual best at the same time of day (see below) | no new result for 25 h (interfaces excluded from automatic tests in spdMerlin are shown, never alerted), failed tests |
 | Backups | BACKUPMON | last NVRAM / JFFS / EXT Drive (USB) backup | no BACKUPMON log or no completed NVRAM backup, last NVRAM backup older than 26 h, BACKUPMON errors |
 | New devices | DHCP (dnsmasq) | MAC addresses never seen before | a new device joined the LAN |
-| System | — (Entware `findutils` for the permission check) | firmware (and pending MerlinAU update), uptime, WAN link drops, load, memory, temperature, storage, files writable by anyone in /jffs/scripts, /jffs/addons and /jffs/configs | firmware changed, WAN link dropped, disk almost full, a script writable by anyone, CPU temperature (optional), no reboot for too long (optional) |
+| System | — (Entware `findutils` for the permission check) | firmware (and pending MerlinAU update), uptime, WAN link drops (with the 7-day count when there were 2 or more), load, memory, temperature, storage, files writable by anyone in /jffs/scripts, /jffs/addons and /jffs/configs | firmware changed, WAN link dropped (outside a planned window, see Settings), disk almost full, a script writable by anyone, CPU temperature (optional), no reboot for too long (optional) |
+
+**To watch.** Some changes are worth knowing about without being a problem yet. When a speed test
+result is 30% or more below the usual best of that interface **at the same time of day**, the digest
+adds a line under the result and lists it under the verdict in SUMMARY, for example:
+
+```
+=== SUMMARY ===
+All green.
+To watch: WGVPN1 upload -54% vs its best at this time of day
+```
+
+It is not an alert: the digest stays `[OK]`. The usual best is the 3rd best result of the last
+30 days within 90 minutes of the same time of day, so one lucky result does not become the
+reference, and evening congestion is compared with other evenings, never with mornings.
+A VPN tunnel is only compared with its results **on the same VPN server**: when VPNMON-R3 or
+you move it to another server, its comparisons start again (the change itself is shown in the
+VPN section), so a slower new server is not reported as a slow tunnel every evening.
+spdMerlin keeps only its last 10 results, so DigestMerlin keeps its own 30-day history of them
+(`state/speed_<interface>.hist`, about 120 lines each). Comparisons start once 7 results of the
+same time of day are known, i.e. after about a week.
 
 ## Requirements
 
@@ -96,7 +116,7 @@ When something is wrong, the subject becomes `[ATTENTION]` and the ALERTS sectio
   check of files writable by anyone (without it, the digest says "not checked"), and its `timeout`
   is used to stop a hanging nvram read (without it, DigestMerlin stops the read itself after 5 s).
 
-Tested on an RT-AX86U Pro with Merlin 3006.102.9, Skynet 9.0.5, Diversion 6.1.1, VPNMON-R3, spdMerlin,
+Tested on an RT-AX86U Pro with Merlin 3006.102.9, Skynet 9.0.7, Diversion 6.1.2, VPNMON-R3, spdMerlin,
 BACKUPMON and MerlinAU 1.7.1, with WireGuard clients. Also reported working on an RT-BE88U and an RT-AX86U. The OpenVPN checks have
 only been tested on a simulated router so far: reports from OpenVPN users and other models are welcome.
 
@@ -112,6 +132,10 @@ Then open the menu (option 1 previews the digest without sending anything):
 sh /jffs/scripts/digestmerlin.sh
 ```
 
+From your next SSH login, typing `digestmerlin` is enough: DigestMerlin adds one line, marked
+`# DigestMerlin`, to `/jffs/configs/profile.add`, the file the firmware reads at each login (other
+add-ons put their shortcuts there too).
+
 If you use IOCMON, it reports DigestMerlin's files, its services-start line and its cron job
 after installing or updating: this is expected.
 
@@ -123,8 +147,10 @@ again. Your settings, history and schedule are always kept.
 Open the menu:
 
 ```sh
-sh /jffs/scripts/digestmerlin.sh
+digestmerlin
 ```
+
+(or `sh /jffs/scripts/digestmerlin.sh`, e.g. in your first session after installing).
 
 ![DigestMerlin menu](menu.png)
 
@@ -182,6 +208,7 @@ The easiest way to change them is the menu: option 4 for the sections, option 5 
 | `DEVICES_IGNORE_PRIVATE_MAC` | 5.7 | 0 | `1` = do not report devices using a random "private" MAC address (phones, laptops). |
 | `SUBJECT_PREFIX` | 5.8 | (none) | Text added in front of the e-mail subject. See below. |
 | `UPDATE_CHECK` | 5.9 | 1 | `1` = the digest tells you when a new DigestMerlin version is on GitHub. See below. |
+| `WAN_PLANNED` | 5.10 | (none) | A window when WAN drops are expected, e.g. `"Sun 03:00-03:10"`: they are shown, but raise no alert. See below. |
 
 **Why two alerts are off by default.** The temperature is shown in the SYSTEM section when the router reports it (no temperature shown means no temperature alert is possible),
 but what is normal depends on the model: around 65C on some routers, 80C or more on others. A fixed
@@ -198,6 +225,17 @@ In the menu, type `none` to remove it.
 (the same check as menu option 6). When a newer one exists, a line at the end of the e-mail says so;
 it is not an alert. Nothing is sent: it only reads a public file. If GitHub does not answer, the
 line is simply left out. `0` turns the check off.
+
+**Planned WAN drops.** If your modem or ONT is rebooted on a schedule, its WAN drops are real but
+expected. Set the window (a day - `Mon`...`Sun`, or `daily` - and a time range, router time) and the
+drops that start in it are shown apart, without an alert:
+
+```
+WAN link drops (24h): 0 | planned (Sun 03:00-03:10): 2 (last Sun 25 Oct 03:03, longest 56s)
+```
+
+A drop outside the window is still an alert, and so is a link that does not come back up. Planned
+drops are not counted in the 7-day total. In the menu, type `none` to remove the window.
 
 **Editing by hand.** The settings live in `/jffs/addons/digestmerlin.d/digestmerlin.conf`
 (created by the menu on the first change). Without the menu, create it from the sample and edit it:
@@ -254,7 +292,7 @@ Menu option 7, or:
 sh /jffs/scripts/digestmerlin.sh uninstall
 ```
 
-Both ask first, then remove everything: schedule, settings, history and files - including any section
+Both ask first, then remove everything: schedule, `digestmerlin` shortcut, settings, history and files - including any section
 you added in `/jffs/addons/digestmerlin.d/sections/` (copy it elsewhere first if you want to keep it).
 
 ## License
