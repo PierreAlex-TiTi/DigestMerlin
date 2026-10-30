@@ -97,6 +97,9 @@ To watch: WGVPN1 upload -54% vs its best at this time of day
 It is not an alert: the digest stays `[OK]`. The usual best is the 3rd best result of the last
 30 days within 90 minutes of the same time of day, so one lucky result does not become the
 reference, and evening congestion is compared with other evenings, never with mornings.
+A VPN tunnel is only compared with its results **on the same VPN server**: when VPNMON-R3 or
+you move it to another server, its comparisons start again (the change itself is shown in the
+VPN section), so a slower new server is not reported as a slow tunnel every evening.
 spdMerlin keeps only its last 10 results, so DigestMerlin keeps its own 30-day history of them
 (`state/speed_<interface>.hist`, about 120 lines each). Comparisons start once 7 results of the
 same time of day are known, i.e. after about a week.

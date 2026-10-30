@@ -6,7 +6,8 @@
   in SUMMARY. It is not an alert: the digest stays OK. The usual best is the 3rd best result of
   the last 30 days within 90 minutes of the same time of day (evening results are compared with
   evenings). DigestMerlin keeps a 30-day history of spdMerlin's results, which itself keeps only
-  10; comparisons start after 7 results of the same time of day.
+  10; comparisons start after 7 results of the same time of day. A VPN tunnel is only compared
+  with its results on the same VPN server.
 - WAN link drops and VPNMON-R3 restarts show their 7-day count when they keep coming back
   (2 drops, 3 restarts or more in 7 days). WAN drops are remembered between digests, so the
   count survives the rotation of the router's logs.
