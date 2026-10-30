@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.5.0 - (in development)
+## v0.5.0 - 2026-10-30
 - **To watch** (speed tests): a download or upload 30% or more below the usual best of the same
   interface at the same time of day gets a line under its result and is listed under the verdict
   in SUMMARY. It is not an alert: the digest stays OK. The usual best is the 3rd best result of

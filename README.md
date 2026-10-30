@@ -66,7 +66,7 @@ None
 
 Generated 2026-10-12 22:36 - covers the last 24h
 Sections: 7 OK
-DigestMerlin v0.4.0
+DigestMerlin v0.5.0
 ```
 
 When something is wrong, the subject becomes `[ATTENTION]` and the ALERTS section says what, e.g.
@@ -116,7 +116,7 @@ same time of day are known, i.e. after about a week.
   check of files writable by anyone (without it, the digest says "not checked"), and its `timeout`
   is used to stop a hanging nvram read (without it, DigestMerlin stops the read itself after 5 s).
 
-Tested on an RT-AX86U Pro with Merlin 3006.102.9, Skynet 9.0.5, Diversion 6.1.1, VPNMON-R3, spdMerlin,
+Tested on an RT-AX86U Pro with Merlin 3006.102.9, Skynet 9.0.7, Diversion 6.1.2, VPNMON-R3, spdMerlin,
 BACKUPMON and MerlinAU 1.7.1, with WireGuard clients. Also reported working on an RT-BE88U and an RT-AX86U. The OpenVPN checks have
 only been tested on a simulated router so far: reports from OpenVPN users and other models are welcome.
 
