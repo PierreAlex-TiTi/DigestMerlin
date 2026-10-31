@@ -22,7 +22,7 @@ SINCE="${SINCE:-$((NOW - WINDOW_H * 3600))}"
 # A settings file with a syntax error is ignored (defaults are used); Windows
 # line endings are tolerated; a number setting that is not a plain number is
 # ignored (its default is used). The main script reports both in the digest.
-DM_NUM_SETTINGS="WG_HANDSHAKE_MAX SPEEDTEST_MAX_AGE_H BACKUP_MAX_AGE_H DISK_ALERT_PCT CPU_TEMP_ALERT REBOOT_MAX_DAYS DEVICES_IGNORE_PRIVATE_MAC UPDATE_CHECK"
+DM_NUM_SETTINGS="WG_HANDSHAKE_MAX SPEEDTEST_MAX_AGE_H BACKUP_MAX_AGE_H DISK_ALERT_PCT CPU_TEMP_ALERT REBOOT_MAX_DAYS DEVICES_IGNORE_PRIVATE_MAC UPDATE_CHECK NEW_DEVICE_ALERT"
 if [ -f "$DM_CONF" ]; then
     _f="$DM_CONF"
     if grep -q "$(printf '\r')" "$DM_CONF" 2>/dev/null; then
@@ -41,7 +41,7 @@ if [ -f "$DM_CONF" ]; then
         case "$_k" in
             WG_HANDSHAKE_MAX) _r="180 86400" ;; SPEEDTEST_MAX_AGE_H|BACKUP_MAX_AGE_H) _r="1 720" ;;
             DISK_ALERT_PCT) _r="1 100" ;; CPU_TEMP_ALERT) _r="40 125" ;; REBOOT_MAX_DAYS) _r="1 365" ;;
-            DEVICES_IGNORE_PRIVATE_MAC|UPDATE_CHECK) _r="0 1" ;; *) _r="0 999999" ;;
+            DEVICES_IGNORE_PRIVATE_MAC|UPDATE_CHECK|NEW_DEVICE_ALERT) _r="0 1" ;; *) _r="0 999999" ;;
         esac
         if [ "$_v" -lt "${_r% *}" ] || [ "$_v" -gt "${_r#* }" ]; then unset "$_k"; continue; fi
         eval "$_k=\$_v"

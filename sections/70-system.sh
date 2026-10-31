@@ -163,6 +163,23 @@ else
 fi
 [ -n "$popen_n" ] && add_alert "System: $popen_n not back up after a drop in the planned window ($WAN_PLANNED)"
 
+# --- An nvram command stuck right now. On some firmware builds an nvram read
+# sometimes never returns; the add-on that called it then hangs too (spdMerlin,
+# Skynet...). Only reported, never stopped: DigestMerlin changes nothing.
+# Process name "nvram", running for more than 2 minutes (a normal read takes
+# well under a second). NVRAM_COMM / NVRAM_STUCK_S: tests only.
+if is_number "$up"; then
+    awk -v comm="(${NVRAM_COMM:-nvram})" -v up="$up" -v min="${NVRAM_STUCK_S:-120}" '
+        $2 == comm { s = $0; sub(/.*\) /, "", s); split(s, a, " ")
+                     age = up - int(a[20] / 100); if (age >= min) print $1, age, a[2] }' \
+        /proc/[0-9]*/stat 2>/dev/null | sort -k2,2nr | head -3 | while read -r pid age ppid; do
+        cmd=$( { tr '\0' ' ' < "/proc/$pid/cmdline"; } 2>/dev/null | cut -c1-60); cmd=${cmd% }
+        by=$( { tr '\0' ' ' < "/proc/$ppid/cmdline"; } 2>/dev/null | cut -c1-80); by=${by% }
+        echo "nvram: '${cmd:-nvram}' stuck for $(fmt_age "$age") (called by: ${by:-unknown})"
+        add_alert "System: '${cmd:-nvram}' has been stuck for $(fmt_age "$age") (called by: ${by:-unknown}) - add-ons using nvram may hang too"
+    done
+fi
+
 # --- Load, memory, temperature
 load=$(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null)
 mt=$(awk '/^MemTotal/ {print $2}' /proc/meminfo)
@@ -190,6 +207,33 @@ for mp in /jffs /opt; do
     echo "Storage $label: ${pct}% used"
     [ "$pct" -ge "$DISK_ALERT_PCT" ] && add_alert "System: $label is ${pct}% full"
 done
+
+# --- HTTPS certificate of the web interface (the one in use is /etc/cert.pem,
+# whether the router made it, Let's Encrypt renewed it or you imported yours).
+# Shown when the web interface uses HTTPS; alert 30 days before it expires.
+CERT="${CERT_FILE:-/etc/cert.pem}"     # CERT_FILE: tests only
+if [ "$(nv http_enable)" != "0" ] && [ -s "$CERT" ] && command -v openssl >/dev/null 2>&1; then
+    end=$(openssl x509 -in "$CERT" -noout -enddate 2>/dev/null | sed -n 's/^notAfter=//p')
+    if [ -n "$end" ]; then
+        # "Oct 24 13:17:35 2028 GMT" -> seconds (read in UTC)
+        set -f; set -- $end; set +f
+        e=$( TZ=UTC; export TZ; pdate "%b %d %H:%M:%S %Y" "$1 $2 $3 $4" )
+        if is_number "$e"; then
+            d=$(( (e - NOW) / 86400 ))
+            if [ "$e" -le "$NOW" ]; then
+                echo "HTTPS certificate: EXPIRED on $(date -d "@$e" '+%d %b %Y')"
+                add_alert "System: the router's HTTPS certificate expired on $(date -d "@$e" '+%d %b %Y') - browsers will refuse or warn"
+            else
+                echo "HTTPS certificate: valid until $(date -d "@$e" '+%d %b %Y') ($d days)"
+                [ "$d" -lt 30 ] && add_alert "System: the router's HTTPS certificate expires in $d day(s) ($(date -d "@$e" '+%d %b %Y'))"
+            fi
+        else
+            echo "HTTPS certificate: valid until $end"
+            openssl x509 -in "$CERT" -noout -checkend 2592000 >/dev/null 2>&1 \
+                || add_alert "System: the router's HTTPS certificate expires within 30 days ($end)"
+        fi
+    fi
+fi
 
 # --- Files writable by anyone. A writable SCRIPT is dangerous (it runs as root):
 # alert. Writable DATA files (results, lists) are common - some add-ons create
