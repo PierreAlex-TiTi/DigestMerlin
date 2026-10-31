@@ -212,7 +212,8 @@ done
 # whether the router made it, Let's Encrypt renewed it or you imported yours).
 # Shown when the web interface uses HTTPS; alert 30 days before it expires.
 CERT="${CERT_FILE:-/etc/cert.pem}"     # CERT_FILE: tests only
-if [ "$(nv http_enable)" != "0" ] && [ -s "$CERT" ] && command -v openssl >/dev/null 2>&1; then
+# "command -v" does not exist in the router's shell: openssl is tested by running it.
+if [ "$(nv http_enable)" != "0" ] && [ -s "$CERT" ] && openssl version >/dev/null 2>&1; then
     end=$(openssl x509 -in "$CERT" -noout -enddate 2>/dev/null | sed -n 's/^notAfter=//p')
     if [ -n "$end" ]; then
         # "Oct 24 13:17:35 2028 GMT" -> seconds (read in UTC)
