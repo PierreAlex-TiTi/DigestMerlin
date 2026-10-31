@@ -33,5 +33,10 @@ CPU_TEMP_ALERT=""
 # e.g. during a scheduled modem reboot - "Sun 03:00-03:10" (empty = none)
 WAN_PLANNED=""
 
+# New devices: 1 = an e-mail within 2 minutes when an unknown device joins the
+# network, besides the daily digest (turn it on from the menu: it also creates
+# the cron job that checks every 2 minutes)
+NEW_DEVICE_ALERT=0
+
 # The digest says when a new DigestMerlin version is on GitHub (1 = check, 0 = never)
 UPDATE_CHECK=1

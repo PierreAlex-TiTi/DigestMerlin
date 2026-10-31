@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.6.0 - (in development)
+- **New device e-mail** (optional, setting 11 `NEW_DEVICE_ALERT`): an e-mail within 2 minutes when
+  an unknown device joins the network, besides the daily digest, which lists it again with
+  "(alerted at ...)" and without a second alert. One e-mail for several devices; private MACs follow
+  setting 7; an e-mail that cannot be sent is tried again 2 minutes later. A first install asks
+  whether to turn it on; an update never does. Its cron job and its services-start line are
+  added and removed with the setting, and on uninstall.
+- SYSTEM: **HTTPS certificate** of the web interface - its expiry date, with an alert 30 days
+  before it expires (useful with Let's Encrypt or an imported certificate). Not shown when the web
+  interface uses HTTP only.
+- SYSTEM: an **nvram command stuck** for more than 2 minutes at digest time is reported, with the
+  program that called it (on some firmware builds an nvram read sometimes never returns, and the
+  add-on waiting for it hangs too). It is only reported, never stopped.
+
 ## v0.5.0 - 2026-10-30
 - **To watch** (speed tests): a download or upload 30% or more below the usual best of the same
   interface at the same time of day gets a line under its result and is listed under the verdict

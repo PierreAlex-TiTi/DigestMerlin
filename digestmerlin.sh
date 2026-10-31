@@ -1,7 +1,7 @@
 #!/bin/sh
 # shellcheck disable=SC2034
 version=0.6.0
-VERSION="0.6.0-test2"
+VERSION="0.6.0-test3"
 # Both lines above carry the same release number (a test build adds "-testN"
 # to the second only): amtm reads the first, menus of v0.2.0 read the second. Keep them on top, before any other mention.
 #
@@ -488,7 +488,7 @@ DigestMerlin v$VERSION"
         printf '%s\n' "$new" | cut -d'|' -f1 >> "$DM_STATE/known_macs"
         printf '%s\n' "$new" | sed "s/^/$NOW|/" >> "$DM_STATE/devices_alerted"
         rm -f /tmp/digestmerlin-watch.fail
-        log "New device e-mail sent: $(printf '%s\n' "$new" | cut -d'|' -f1,3 | tr '\n' ' ')"
+        log "New device e-mail sent: $(printf '%s\n' "$new" | awk -F'|' '{printf "%s%s (%s)", (NR > 1 ? ", " : ""), $1, $3}')"
     else
         # Logged once, not every 2 minutes, until an e-mail goes through again.
         [ -f /tmp/digestmerlin-watch.fail ] || log "New device e-mail not sent - tried again every 2 minutes"
