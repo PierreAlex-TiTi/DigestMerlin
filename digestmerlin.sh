@@ -1,7 +1,7 @@
 #!/bin/sh
 # shellcheck disable=SC2034
-version=0.5.0
-VERSION="0.5.0"
+version=0.6.0
+VERSION="0.6.0-test1"
 # Both lines above carry the same release number (a test build adds "-testN"
 # to the second only): amtm reads the first, menus of v0.2.0 read the second. Keep them on top, before any other mention.
 #
@@ -19,6 +19,8 @@ VERSION="0.5.0"
 #   digestmerlin.sh setup            download and install all files (first install)
 #   digestmerlin.sh update           update to the latest version (settings are kept)
 #   digestmerlin.sh uninstall        remove DigestMerlin completely
+#   digestmerlin.sh watch            e-mail at once about new devices (run by cron
+#                                    every 2 minutes when NEW_DEVICE_ALERT=1)
 #
 # Each section is a small script in sections/ (NN-name.sh). Sections whose
 # tool is not installed are skipped. A failing or hanging section never stops
@@ -42,6 +44,7 @@ SENDEMAIL_SCRIPT="${SENDEMAIL_SCRIPT:-/jffs/addons/SendEmail.d/SendEmail.sh}"
 CEM_LIB="${CEM_LIB:-/jffs/addons/shared-libs/CustomEMailFunctions.lib.sh}"
 AMTM_MAIL_DIR="${AMTM_MAIL_DIR:-/jffs/addons/amtm/mail}"
 CRU_ID="DigestMerlin"
+WATCH_ID="DigestMerlinWatch"    # cron job of the instant new-device e-mail
 # The firmware reads this file at each SSH login: our "digestmerlin" shortcut lives there.
 PROFILE_ADD="${PROFILE_ADD:-/jffs/configs/profile.add}"
 LOGTAG="DigestMerlin"
@@ -88,6 +91,7 @@ setting_range() {
         REBOOT_MAX_DAYS)     echo "1 365" ;;
         DEVICES_IGNORE_PRIVATE_MAC) echo "0 1" ;;
         UPDATE_CHECK)        echo "0 1" ;;
+        NEW_DEVICE_ALERT)    echo "0 1" ;;
         *)                   echo "0 999999" ;;
     esac
 }
@@ -97,7 +101,7 @@ valid_wan_window() {
     echo "$1" | grep -E -i -q '^(mon|tue|wed|thu|fri|sat|sun|daily) ([01][0-9]|2[0-3]):[0-5][0-9]-([01][0-9]|2[0-3]):[0-5][0-9]$'
 }
 
-DM_NUM_SETTINGS="WG_HANDSHAKE_MAX SPEEDTEST_MAX_AGE_H BACKUP_MAX_AGE_H DISK_ALERT_PCT CPU_TEMP_ALERT REBOOT_MAX_DAYS DEVICES_IGNORE_PRIVATE_MAC UPDATE_CHECK"
+DM_NUM_SETTINGS="WG_HANDSHAKE_MAX SPEEDTEST_MAX_AGE_H BACKUP_MAX_AGE_H DISK_ALERT_PCT CPU_TEMP_ALERT REBOOT_MAX_DAYS DEVICES_IGNORE_PRIVATE_MAC UPDATE_CHECK NEW_DEVICE_ALERT"
 load_conf() {
     CONF_BROKEN=""; CONF_INVALID=""
     [ -f "$DM_CONF" ] || return 0
@@ -440,6 +444,59 @@ send_digest() {
     return 1
 }
 
+# Instant e-mail about new devices (cron, every 2 minutes, NEW_DEVICE_ALERT=1).
+# The SECTION decides what is new (same rules as the digest: baseline, private
+# MACs); this sends one short e-mail for all of them, then records them as known
+# and as "alerted" so that the next digest lists them once, without an alert.
+# Not sent = nothing recorded: the next run tries again.
+do_watch() {
+    [ "${NEW_DEVICE_ALERT:-0}" = "1" ] || return 0
+    case " $DISABLED_SECTIONS " in *" devices "*) return 0 ;; esac
+    f="$SECTIONS_DIR/60-devices.sh"
+    [ -f "$f" ] || return 0
+    method=$(mail_method)
+    [ "$method" = none ] && return 0
+    lk=/tmp/digestmerlin-devices.lock
+    if ! mkdir "$lk" 2>/dev/null; then
+        p=$(cat "$lk/pid" 2>/dev/null)
+        [ -n "$p" ] && kill -0 "$p" 2>/dev/null && return 0     # the digest is reading the list
+        rm -rf "$lk"; mkdir "$lk" 2>/dev/null || return 0
+    fi
+    echo $$ > "$lk/pid"
+    trap 'rm -rf "$lk"' EXIT
+    trap 'rm -rf "$lk"; exit 1' INT TERM
+    NOW=$(date +%s); export NOW
+    new=$(DM_DEVICE_WATCH=1 sh "$f" 2>/dev/null | grep -E '^[0-9a-f]{2}(:[0-9a-f]{2}){5}\|')
+    [ -n "$new" ] || return 0
+    n=$(printf '%s\n' "$new" | grep -c .)
+    host=$(nv productid)
+    first=$(printf '%s\n' "$new" | head -1 | cut -d'|' -f3)
+    more=""; it="it"; [ "$n" -gt 1 ] && { more=" (+$((n - 1)) more)"; it="them"; }
+    subject="${SUBJECT_PREFIX:+${SUBJECT_PREFIX% } }[NEW DEVICE] ${host:-router} - $first$more"
+    body="New device(s) on the network of ${host:-the router}:
+
+$(printf '%s\n' "$new" | awk -F'|' '{print "  " $1 "  " $2 "  " $3 $4}')
+
+Seen $(date -d "@$NOW" '+%a %d %b %H:%M'). The next daily digest lists $it again, without a new alert.
+To stop these e-mails: menu option 5, setting 11.
+
+DigestMerlin v$VERSION"
+    mailbody=$(printf '%s\n' "$body" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
+    if send_once; then
+        # shellcheck disable=SC2174
+        mkdir -p -m 700 "$DM_STATE"
+        printf '%s\n' "$new" | cut -d'|' -f1 >> "$DM_STATE/known_macs"
+        printf '%s\n' "$new" | sed "s/^/$NOW|/" >> "$DM_STATE/devices_alerted"
+        rm -f /tmp/digestmerlin-watch.fail
+        log "New device e-mail sent: $(printf '%s\n' "$new" | cut -d'|' -f1,3 | tr '\n' ' ')"
+    else
+        # Logged once, not every 2 minutes, until an e-mail goes through again.
+        [ -f /tmp/digestmerlin-watch.fail ] || log "New device e-mail not sent - tried again every 2 minutes"
+        : > /tmp/digestmerlin-watch.fail
+    fi
+    return 0
+}
+
 # Shown in the menu header: "epoch|OK|sent"
 save_last_run() {
     f=last_run; [ -n "$DM_TEST" ] && f=last_test     # a test never hides the last real digest
@@ -480,6 +537,30 @@ do_unschedule() {
     say "Daily e-mail stopped. Files kept in $DM_DIR."
 }
 
+# Instant new-device e-mail: a cron job every 2 minutes while NEW_DEVICE_ALERT=1,
+# re-created after each reboot by a services-start line marked # DigestMerlinWatch.
+# Called when the setting changes, on install, update and uninstall.
+watch_sync() {
+    ss=/jffs/scripts/services-start
+    if [ "${NEW_DEVICE_ALERT:-0}" = "1" ] && [ "$1" != "off" ]; then
+        job="*/2 * * * * sh $SCRIPT_PATH watch"
+        cru l 2>/dev/null | grep -q "#$WATCH_ID#" || cru a "$WATCH_ID" "$job"
+        [ -f "$ss" ] || printf '#!/bin/sh\n' > "$ss"
+        if ! grep -q "# $WATCH_ID\$" "$ss"; then
+            [ -n "$(tail -c 1 "$ss")" ] && echo >> "$ss"
+            printf 'cru a %s "%s" # %s\n' "$WATCH_ID" "$job" "$WATCH_ID" >> "$ss"
+        fi
+        chmod 755 "$ss"
+    else
+        cru d "$WATCH_ID" 2>/dev/null
+        if [ -f "$ss" ] && grep -q "# $WATCH_ID\$" "$ss"; then
+            sed -i "/# $WATCH_ID\$/d" "$ss"
+            [ -z "$(grep -v '^#!/bin/sh$' "$ss" | grep -v '^[[:space:]]*$')" ] && rm -f "$ss"
+        fi
+    fi
+    return 0
+}
+
 # Shortcut: typing "digestmerlin" opens the menu, from the next SSH login.
 # One line in profile.add, marked like the other add-ons' lines there; only
 # that line is ever touched. Never fails the caller. Prints "added" when the
@@ -509,6 +590,7 @@ remove_shortcut() {
 # Remove every trace: schedule, services-start line, shortcut, settings, history, files.
 do_remove_all() {
     do_unschedule >/dev/null
+    watch_sync off
     remove_shortcut
     rm -rf "$DM_DIR" /tmp/digestmerlin.* /tmp/digestmerlin-*
     rm -f "$SCRIPT_PATH"
@@ -651,6 +733,7 @@ do_update() {
     rm -rf "$tmp"
     log "Installed v$new (was v${old:-?})"
     add_shortcut >/dev/null
+    watch_sync
     say "DigestMerlin v$new installed."
     return 0
 }
@@ -673,6 +756,19 @@ do_setup() {
             *)   say "Not scheduled. You can do it from the menu (option 3)." ;;
         esac
     fi
+    # Asked once, on a first install only: an update never turns it on by itself.
+    if [ -t 0 ] && ! grep -q '^NEW_DEVICE_ALERT=' "$DM_CONF" 2>/dev/null; then
+        printf "Also e-mail you as soon as a new device joins your network? [Y/n] "
+        read -r ans
+        case "$ans" in
+            n|N) conf_set NEW_DEVICE_ALERT 0 >/dev/null
+                 say "Not enabled. You can turn it on from the menu (option 5, setting 11)." ;;
+            *)   if conf_set NEW_DEVICE_ALERT 1; then
+                     NEW_DEVICE_ALERT=1; watch_sync
+                     say "Enabled: new devices are e-mailed within 2 minutes (menu option 5, setting 11)."
+                 fi ;;
+        esac
+    fi
     say ""
     say "Open the menu (preview, send time, sections, settings...):"
     say "    digestmerlin            (from your next SSH login)"
@@ -693,7 +789,8 @@ REBOOT_MAX_DAYS||Days without a reboot|opt|Alert when the router has been runnin
 DEVICES_IGNORE_PRIVATE_MAC|0|New devices: ignore private MACs (0 or 1)|bool|1 = do not report devices using a random private MAC address (phones, laptops).|0 to report them, 1 to ignore them
 SUBJECT_PREFIX||Text in front of the e-mail subject|text|Added in front of the subject, e.g. to tell several routers apart.|[Home]
 UPDATE_CHECK|1|Update check in the digest (0 or 1)|bool|1 = the digest says when a new DigestMerlin version is on GitHub (one check per digest, nothing is sent).|1 to check, 0 to never check
-WAN_PLANNED||WAN: planned drops window (shown, no alert)|window|WAN drops that start in this window are still shown, but raise no alert - e.g. during a scheduled modem reboot. A day (Mon...Sun, or daily) and a time range, router time.|Sun 03:00-03:10"
+WAN_PLANNED||WAN: planned drops window (shown, no alert)|window|WAN drops that start in this window are still shown, but raise no alert - e.g. during a scheduled modem reboot. A day (Mon...Sun, or daily) and a time range, router time.|Sun 03:00-03:10
+NEW_DEVICE_ALERT|0|New devices: instant e-mail (0 or 1)|bool|1 = an e-mail within 2 minutes when an unknown device joins the network, besides the daily digest (which lists it again). Follows setting 7 for private MACs.|1 to be told at once, 0 for the daily digest only"
 
 pause() { printf '\n Press Enter to continue... '; read -r _ || exit 0; }
 
@@ -909,7 +1006,9 @@ EOF_LINE
             text) [ "$val" = "none" ] && val=""
                   case "$val" in *[\"\\\$\`\'=]*|-*) say ' Not allowed: " \ $ ` = and apostrophes, or a leading -'; pause; continue ;; esac ;;
         esac
-        conf_set "$key" "$val"
+        conf_set "$key" "$val" || continue
+        # The instant e-mail needs its cron job created or removed now.
+        [ "$key" = "NEW_DEVICE_ALERT" ] && { NEW_DEVICE_ALERT=$val; watch_sync; }
     done
 }
 
@@ -1075,6 +1174,7 @@ case "$1" in
             exit 1
         fi ;;
     version)    say "DigestMerlin v$VERSION" ;;
+    watch)      do_watch ;;
     *)
         usage
         exit 1
