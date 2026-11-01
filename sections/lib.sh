@@ -147,8 +147,8 @@ else
         nvram get "$1" > "$_nvo" 2>/dev/null &
         _nvp=$!; _nvi=0
         while kill -0 "$_nvp" 2>/dev/null && [ "$_nvi" -lt 50 ]; do
-            usleep 100000 2>/dev/null || sleep 1
-            _nvi=$((_nvi + 1))
+            # without usleep, sleep 1 counts as 10 tries: still 5 s at most
+            if usleep 100000 2>/dev/null; then _nvi=$((_nvi + 1)); else sleep 1; _nvi=$((_nvi + 10)); fi
         done
         kill -9 "$_nvp" 2>/dev/null; wait "$_nvp" 2>/dev/null
         cat "$_nvo" 2>/dev/null; rm -f "$_nvo"
