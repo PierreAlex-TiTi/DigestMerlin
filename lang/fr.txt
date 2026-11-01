@@ -1,0 +1,190 @@
+# LANGUAGE: Français
+# DigestMerlin - French text of the e-mails (setting MAIL_LANG=fr, menu option 5).
+# Read only, never run.
+#
+# One line per text:   English text => Texte français
+#   " => " with one space on each side; any other space is part of the text.
+#   {}  stands for a value (a number, a date, a name...): the same number of {}
+#       on both sides, in the same order. A text can neither start nor end with {}.
+#   ^   at the start: only when the text starts the line (titles...).
+# Lines starting with # are ignored. A text missing here stays in English.
+# Dates and days stay in English for now.
+#
+# Your own wording: the same kind of lines in lang/custom.txt (same folder).
+# It is read first and never touched by an update.
+# --- Summary, alerts, footer
+^SUMMARY => RÉSUMÉ
+^ALERTS => ALERTES
+^None => Aucune
+All green. => Tout est au vert.
+point(s) need attention - see ALERTS. => point(s) à vérifier - voir ALERTES.
+section(s) unavailable - see below. => section(s) indisponible(s) - voir plus bas.
+To watch => À surveiller
+^Generated {} - covers the last {}h => Généré le {} - couvre les dernières {} h
+^Sections: => Sections :
+unavailable => indisponible(s)
+| not installed: => | non installées :
+Update available: DigestMerlin v{} (menu option 6, or: sh {} update) => Mise à jour disponible : DigestMerlin v{} (option 6 du menu, ou : sh {} update)
+Daily digest => Bulletin quotidien
+Section unavailable (no answer after {}s) => Section indisponible (pas de réponse après {} s)
+Section unavailable (error {}) => Section indisponible (erreur {})
+: section stopped after {}s =>  : section arrêtée après {} s
+: section failed (code {}) =>  : échec de la section (code {})
+No section ran: all sections are disabled or not applicable (menu option 4) => Aucune section exécutée : toutes sont désactivées ou sans objet (option 4 du menu)
+No section found in {} - reinstall with: sh {} update => Aucune section trouvée dans {} - réinstaller avec : sh {} update
+Cannot read syslog dates on this router (no BusyBox date) - 24h counters are not reliable => Dates du journal illisibles sur ce routeur (pas de date BusyBox) - les compteurs sur 24 h ne sont pas fiables
+Settings file {} has a syntax error - default settings were used => Le fichier de réglages {} contient une erreur de syntaxe - réglages par défaut utilisés
+Setting {} has an invalid value ({}) - its default was used => Le réglage {} a une valeur invalide ({}) - sa valeur par défaut est utilisée
+An update was interrupted: old section files are still there ({}) - run: sh {} update => Une mise à jour a été interrompue : d'anciens fichiers de section sont encore présents ({}) - lancer : sh {} update
+The previous digest could not be e-mailed - check the e-mail settings in amtm (em, se) => Le bulletin précédent n'a pas pu être envoyé - vérifier les réglages e-mail dans amtm (em, se)
+(not sent on {}) => (non envoyé le {})
+# --- New device e-mail (sent at once)
+New device(s) on the network of {}: => Nouvel(s) appareil(s) sur le réseau de {} :
+Seen {}. The next daily digest lists it again, without a new alert. => Vu {}. Le prochain bulletin quotidien le mentionnera à nouveau, sans nouvelle alerte.
+Seen {}. The next daily digest lists them again, without a new alert. => Vu {}. Le prochain bulletin quotidien les mentionnera à nouveau, sans nouvelle alerte.
+To stop these e-mails: menu option 5, setting 11. => Pour ne plus recevoir ces e-mails : option 5 du menu, réglage 11.
+(+{} more) => (+{} autres)
+# --- Common
+({} ago, => (il y a {},
+({} ago) => (il y a {})
+schedule unknown => planning inconnu
+schedule: => planning :
+# --- SKYNET
+^SKYNET FIREWALL => PARE-FEU SKYNET
+^Blacklist: not loaded => Liste noire : non chargée
+^Blacklist: {} IPs | {} ranges => Liste noire : {} IP | {} plages
+Skynet: blacklist not loaded (ipset Skynet-Blacklist missing) - is Skynet running? => Skynet : liste noire non chargée (ipset Skynet-Blacklist absent) - Skynet est-il lancé ?
+Skynet: blacklist dropped from {} to {} IPs since the last digest => Skynet : liste noire passée de {} à {} IP depuis le dernier bulletin
+^List refresh: never recorded => Mise à jour des listes : jamais enregistrée
+^List refresh: => Mise à jour des listes :
+daily) => quotidienne)
+weekly) => hebdomadaire)
+Skynet: malware lists not refreshed for {} (schedule: => Skynet : listes malware non mises à jour depuis {} (planning :
+^Download failures ({}h): => Échecs de téléchargement ({} h) :
+Skynet: {} list download failure(s) in {}h => Skynet : {} échec(s) de téléchargement de liste en {} h
+^Blocked inbound ({}h): {} | outbound: => Bloqués en entrée ({} h) : {} | en sortie :
+^Outbound blocks from: => Blocages en sortie depuis :
+= this router => = ce routeur
+Skynet: log collection stalled for {} - syslog may grow quickly => Skynet : collecte des journaux bloquée depuis {} - le syslog peut grossir vite
+# --- DIVERSION
+^DIVERSION (ad blocking) => DIVERSION (blocage des pubs)
+^Diversion: installed, but its files on the USB drive are missing => Diversion : installé, mais ses fichiers sur la clé USB sont absents
+Diversion: its files on the USB drive are missing ({}) - is the drive mounted? Ads are not blocked => Diversion : ses fichiers sur la clé USB sont absents ({}) - la clé est-elle montée ? Les pubs ne sont pas bloquées
+: enabled | =>  : activé |
+: disabled | =>  : désactivé |
+status unknown => statut inconnu
+| ad blocking on => | blocage des pubs activé
+| ad blocking off => | blocage des pubs désactivé
+Diversion: disabled => Diversion : désactivé
+(status: => (statut :
+- ads are not blocked => - les pubs ne sont pas bloquées
+Diversion: ad blocking is off => Diversion : le blocage des pubs est désactivé
+^Blocking list: missing or empty => Liste de blocage : absente ou vide
+^Blocking list: {} domains => Liste de blocage : {} domaines
+- loaded by dnsmasq => - chargée par dnsmasq
+- NOT loaded by dnsmasq => - NON chargée par dnsmasq
+Diversion: the blocking list is not loaded by dnsmasq - ads are not blocked => Diversion : la liste de blocage n'est pas chargée par dnsmasq - les pubs ne sont pas bloquées
+Diversion: blocking list dropped from {} to {} domains since the last digest => Diversion : liste de blocage passée de {} à {} domaines depuis le dernier bulletin
+Diversion: the blocking list is missing or empty - ads are not blocked => Diversion : la liste de blocage est absente ou vide - les pubs ne sont pas bloquées
+^List update: never recorded => Mise à jour de la liste : jamais enregistrée
+^List update: => Mise à jour de la liste :
+weekly on {}) => hebdomadaire, le {})
+Diversion: blocking list not updated for {} ({}) => Diversion : liste de blocage non mise à jour depuis {} ({})
+^Ads blocked: => Pubs bloquées :
+this week => cette semaine
+last week => la semaine dernière
+(counted => (comptées le
+# --- VPN
+: UP | =>  : ACTIF |
+: DOWN (interface missing) =>  : HORS SERVICE (interface absente)
+endpoint ? => serveur ?
+| handshake {} ago => | dernier échange il y a {}
+| no handshake yet => | aucun échange pour l'instant
+VPN: WireGuard client WGC{} is enabled but its interface is down => VPN : le client WireGuard WGC{} est activé mais son interface est hors service
+VPN: WGC{} has had no handshake for {} - tunnel probably not passing traffic => VPN : WGC{} sans échange depuis {} - le tunnel ne fait probablement plus passer de trafic
+VPN: WGC{} is up but has never completed a handshake => VPN : WGC{} est actif mais n'a jamais réussi d'échange
+: CONNECTED | =>  : CONNECTÉ |
+: DOWN (tun1{} missing) | =>  : HORS SERVICE (tun1{} absente) |
+: CONNECTING | =>  : CONNEXION EN COURS |
+: ERROR (code {}) | =>  : ERREUR (code {}) |
+: STOPPED (set to start with WAN) | =>  : ARRÊTÉ (prévu au démarrage du WAN) |
+VPN: OpenVPN client {} reports connected but its interface tun1{} is missing => VPN : le client OpenVPN {} se dit connecté mais son interface tun1{} est absente
+VPN: OpenVPN client {} is still connecting => VPN : le client OpenVPN {} est toujours en cours de connexion
+VPN: OpenVPN client {} is in error (code {}) => VPN : le client OpenVPN {} est en erreur (code {})
+VPN: OpenVPN client {} should start with the WAN but is stopped => VPN : le client OpenVPN {} devrait démarrer avec le WAN mais il est arrêté
+^VPNMON-R3: running => VPNMON-R3 : en marche
+^VPNMON-R3: NOT running => VPNMON-R3 : ARRÊTÉ
+VPN: VPNMON-R3 is installed but not running - tunnels are not monitored => VPN : VPNMON-R3 est installé mais arrêté - les tunnels ne sont pas surveillés
+^Tunnel restarts by VPNMON-R3 ({}h): => Redémarrages de tunnel par VPNMON-R3 ({} h) :
+| 7 days: => | 7 jours :
+# --- SPEED TESTS
+^SPEED TESTS (spdMerlin) => TESTS DE DÉBIT (spdMerlin)
+^No results yet => Aucun résultat pour l'instant
+down / {} up Mbps, => Mbps en réception / {} Mbps en envoi,
+, excluded from automatic tests => , exclu des tests automatiques
+, automatic tests off => , tests automatiques désactivés
+vs its best at this time of day ({} Mbps) => par rapport à son meilleur résultat à cette heure ({} Mbps)
+vs its best at this time of day => par rapport à son meilleur résultat à cette heure
+download - => réception -
+upload - => envoi -
+^Failed tests ({}h): => Tests en échec ({} h) :
+spdMerlin: no new result for more than {}h on: => spdMerlin : aucun nouveau résultat depuis plus de {} h sur :
+spdMerlin: {} failed speed test(s) in {}h => spdMerlin : {} test(s) de débit en échec en {} h
+# --- BACKUPS
+^BACKUPS (BACKUPMON) => SAUVEGARDES (BACKUPMON)
+^No BACKUPMON log yet => Aucun journal BACKUPMON pour l'instant
+BACKUPMON: installed but no log found - has a backup ever run? => BACKUPMON : installé mais aucun journal trouvé - une sauvegarde a-t-elle déjà eu lieu ?
+^Last EXT Drive backup: => Dernière sauvegarde du disque externe :
+^Last {} backup: => Dernière sauvegarde {} :
+BACKUPMON: last NVRAM backup is {} old => BACKUPMON : la dernière sauvegarde NVRAM date de {}
+BACKUPMON: no completed NVRAM backup in its log => BACKUPMON : aucune sauvegarde NVRAM terminée dans son journal
+^Errors ({}h): => Erreurs ({} h) :
+# --- NEW DEVICES
+^NEW DEVICES => NOUVEAUX APPAREILS
+^No device leased yet: the list of known devices is created on the next run => Aucun appareil pour l'instant : la liste des appareils connus sera créée au prochain passage
+^Baseline created: {} device(s) recorded as known => Référence créée : {} appareil(s) enregistré(s) comme connu(s)
+^Could not record the known devices (is /jffs full?) - tried again on the next run => Impossible d'enregistrer les appareils connus (/jffs plein ?) - nouvel essai au prochain passage
+^No baseline yet (created on the first real run): {} device(s) leased now => Pas encore de référence (créée au premier vrai passage) : {} appareil(s) en ce moment
+(alerted at {}) => (déjà signalé : {})
+(private MAC) => (MAC privée)
+^New device(s) since the last digest: => Nouveaux appareils depuis le dernier bulletin :
+Network: {} new device(s) on the LAN: => Réseau : {} nouvel(s) appareil(s) sur le LAN :
+^No new device ({} leased now) => Aucun nouvel appareil ({} connectés en ce moment)
+# --- SYSTEM
+^SYSTEM => SYSTÈME
+^Firmware: => Firmware :
+System: firmware changed from {} to => Système : firmware passé de {} à
+^MerlinAU: no pending update => MerlinAU : aucune mise à jour en attente
+^MerlinAU: update {} pending (found {}) => MerlinAU : mise à jour {} en attente (trouvée le {})
+^Last boot: {} (up {}) => Dernier démarrage : {} (en marche depuis {})
+System: no reboot for {} (expected at least every {} days) => Système : pas de redémarrage depuis {} (attendu au moins tous les {} jours)
+^WAN link drops (24h): => Coupures du lien WAN (24 h) :
+| planned ({}): => | prévues ({}) :
+(last => (dernière
+, longest => , la plus longue
+not back up in the log => pas revenu(s) d'après le journal
+System: WAN link dropped {} times in 24h => Système : lien WAN coupé {} fois en 24 h
+System: WAN link dropped {} time in 24h => Système : lien WAN coupé {} fois en 24 h
+System: {} not back up after a drop in the planned window ({}) => Système : {} pas revenu après une coupure dans le créneau prévu ({})
+nvram: '{}' stuck for {} (called by: {}) => nvram : '{}' bloqué depuis {} (appelé par : {})
+System: '{}' has been stuck for {} (called by: {}) - add-ons using nvram may hang too => Système : '{}' est bloqué depuis {} (appelé par : {}) - les add-ons qui utilisent nvram peuvent bloquer aussi
+^Load: => Charge :
+| memory {} used => | mémoire {} utilisée
+| swap {} MB used => | swap {} Mo utilisés
+System: CPU at {}C (alert set at {}C) => Système : CPU à {} °C (alerte réglée à {} °C)
+^Storage Entware (USB): {}% used => Stockage Entware (USB) : {} % utilisé
+^Storage {}: {}% used => Stockage {} : {} % utilisé
+System: Entware (USB) is {}% full => Système : Entware (USB) est plein à {} %
+System: {} is {}% full => Système : {} est plein à {} %
+^HTTPS certificate: EXPIRED on => Certificat HTTPS : EXPIRÉ le
+^HTTPS certificate: valid until {} ({} days) => Certificat HTTPS : valide jusqu'au {} ({} jours)
+^HTTPS certificate: valid until => Certificat HTTPS : valide jusqu'au
+System: the router's HTTPS certificate expired on => Système : le certificat HTTPS du routeur a expiré le
+- browsers will refuse or warn => - les navigateurs le refuseront ou afficheront un avertissement
+System: the router's HTTPS certificate expires in {} day(s) ({}) => Système : le certificat HTTPS du routeur expire dans {} jour(s) ({})
+System: the router's HTTPS certificate expires within 30 days ({}) => Système : le certificat HTTPS du routeur expire dans moins de 30 jours ({})
+^Scripts writable by anyone: not checked (needs Entware's find: opkg install findutils) => Scripts modifiables par tous : non vérifié (nécessite le find d'Entware : opkg install findutils)
+^Scripts writable by anyone: => Scripts modifiables par tous :
+System: {} script(s) writable by anyone - they run as root (e.g. {}) - fix with chmod o-w => Système : {} script(s) modifiable(s) par tous - exécuté(s) en root (ex. {}) - corriger avec chmod o-w
+^Data files writable by anyone: => Fichiers de données modifiables par tous :
+^amtm files writable by anyone: {} (amtm re-creates them on update) => Fichiers amtm modifiables par tous : {} (amtm les recrée à sa mise à jour)
