@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.6.0 - (in development)
+## v0.6.0 - 2026-11-01
 - **New device e-mail** (optional, setting 11 `NEW_DEVICE_ALERT`): an e-mail within 2 minutes when
   an unknown device joins the network, besides the daily digest, which lists it again with
   "(alerted at ...)" and without a second alert. One e-mail for several devices; private MACs follow
