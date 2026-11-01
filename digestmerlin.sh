@@ -1,7 +1,7 @@
 #!/bin/sh
 # shellcheck disable=SC2034
 version=0.7.0
-VERSION="0.7.0-test3"
+VERSION="0.7.0-test4"
 # Both lines above carry the same release number (a test build adds "-testN"
 # to the second only): amtm reads the first, menus of v0.2.0 read the second. Keep them on top, before any other mention.
 #
@@ -421,7 +421,7 @@ lang_pairs() {
 }
 
 # Replaces each known text, longest first, in one pass (a translation is never
-# translated again). "{}" in a text stands for a value (no ( ) | < > in it);
+# translated again). "{}" in a text stands for a value (no ( ) | in it, nor < > in html);
 # "^" = only at the start of a line (after spaces, "=" and <tags>). A text is
 # only replaced as whole words.
 # html: inside <...> nothing is replaced, and & < > are escaped in the pairs.
@@ -444,7 +444,7 @@ function match_at(s, i, j,    p1, pos, k, lit, rest, e, cap, res, last) {
         lit = KP[j, k]; rest = substr(s, pos); e = index(rest, lit)
         if (e <= 1) return 0
         cap = substr(rest, 1, e - 1)
-        if (cap ~ /[()|<>]/) return 0
+        if (cap ~ /[()|]/ || (mode == "html" && cap ~ /[<>]/)) return 0
         res = res walk(cap, 0) VP[j, k]; pos += e - 1 + length(lit)
     }
     last = KP[j, NP[j]]
@@ -1081,6 +1081,8 @@ menu_header() {
     [ -n "$lasttest" ] && say "   Last test    : $lasttest"
     say "   E-mail       : $mail"
     say "   Sections     : $((n_all - n_off)) of $n_all enabled"
+    lname=$(lang_list | sed -n "s/^${MAIL_LANG:-en}|//p" | head -1)
+    say "   Language     : ${lname:-English} (${MAIL_LANG:-en})"
     [ -n "$CONF_BROKEN" ] && say "   WARNING      : settings file has a syntax error - defaults in use"
     [ "$n_all" -eq 0 ] && say "   WARNING      : no section installed - use option 6 to reinstall"
     [ "$SHORTCUT_NEW" = "added" ] && say "   New          : type 'digestmerlin' to open this menu (next SSH login)"
