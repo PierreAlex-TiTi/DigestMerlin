@@ -38,5 +38,9 @@ WAN_PLANNED=""
 # the cron job that checks every 2 minutes)
 NEW_DEVICE_ALERT=0
 
+# Language of the e-mails: en (default) or a language installed with DigestMerlin
+# (menu option 5 lists them). Your own wording: lang/custom.txt, same folder.
+MAIL_LANG=en
+
 # The digest says when a new DigestMerlin version is on GitHub (1 = check, 0 = never)
 UPDATE_CHECK=1

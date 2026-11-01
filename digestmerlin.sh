@@ -1,7 +1,7 @@
 #!/bin/sh
 # shellcheck disable=SC2034
-version=0.6.0
-VERSION="0.6.0"
+version=0.7.0
+VERSION="0.7.0-test1"
 # Both lines above carry the same release number (a test build adds "-testN"
 # to the second only): amtm reads the first, menus of v0.2.0 read the second. Keep them on top, before any other mention.
 #
@@ -28,6 +28,8 @@ VERSION="0.6.0"
 
 REPO="${DM_REPO:-https://raw.githubusercontent.com/PierreAlex-TiTi/DigestMerlin/main}"
 SECTION_FILES="lib.sh 10-skynet.sh 20-diversion.sh 30-vpn.sh 40-speedtest.sh 50-backupmon.sh 60-devices.sh 70-system.sh"
+# Data files in a sub-folder of the add-on folder: never run, only read.
+DATA_FILES="lang/de.txt lang/es.txt lang/fr.txt lang/it.txt"
 # Sections renamed in v0.4.0 ("old name|title"): removed on install or update,
 # also for versions that kept no file list (v0.2.0 and older).
 LEGACY_SECTIONS="20-vpn.sh|VPN 30-speedtest.sh|SPEED TESTS (spdMerlin) 40-backupmon.sh|BACKUPS (BACKUPMON) 50-devices.sh|NEW DEVICES 60-system.sh|SYSTEM"
@@ -145,6 +147,14 @@ load_conf() {
         CONF_INVALID="${CONF_INVALID}WAN_PLANNED=$WAN_PLANNED (expected e.g. Sun 03:00-03:10)
 "
         unset WAN_PLANNED
+    fi
+    # MAIL_LANG: "en" or a language whose file is installed (lang/xx.txt).
+    if [ -n "$MAIL_LANG" ] && [ "$MAIL_LANG" != "en" ]; then
+        case "$MAIL_LANG" in [a-z][a-z]) [ -f "$DM_DIR/lang/$MAIL_LANG.txt" ] ;; *) false ;; esac || {
+            CONF_INVALID="${CONF_INVALID}MAIL_LANG=$MAIL_LANG (no such language - English is used)
+"
+            unset MAIL_LANG
+        }
     fi
 }
 load_conf
@@ -383,6 +393,129 @@ mail_style() {
         { print }'
 }
 
+# ---------------------------------------------------------------- mail language
+# The digest is always built in English: the alerts, the summary, the history
+# and the unsent copy read that text. Only what leaves by e-mail is translated,
+# at the very end, by replacing known texts (lang/xx.txt, then your own
+# lang/custom.txt). A text not in the file stays in English; any problem = the
+# English e-mail is sent as is.
+
+# Languages offered in the menu: "code|name", English first.
+lang_list() {
+    echo "en|English"
+    for f in "$DM_DIR"/lang/*.txt; do
+        [ -f "$f" ] || continue
+        c=${f##*/}; c=${c%.txt}
+        case "$c" in [a-z][a-z]) ;; *) continue ;; esac
+        nm=$(sed -n 's/^# LANGUAGE: *//p' "$f" | head -1)
+        echo "$c|${nm:-$c}"
+    done
+}
+
+# "English => Translation" lines: lang/custom.txt first (it wins), then the language file.
+lang_pairs() {
+    [ -f "$DM_DIR/lang/custom.txt" ] && tr -d '\r' < "$DM_DIR/lang/custom.txt"
+    if [ "${MAIL_LANG:-en}" != "en" ] && [ -f "$DM_DIR/lang/$MAIL_LANG.txt" ]; then
+        tr -d '\r' < "$DM_DIR/lang/$MAIL_LANG.txt"
+    fi
+}
+
+# Replaces each known text, longest first, in one pass (a translation is never
+# translated again). "{}" in a text stands for a value (no ( ) | < > in it);
+# "^" = only at the start of a line (after spaces, "=" and <tags>). A text is
+# only replaced as whole words.
+# html: inside <...> nothing is replaced, and & < > are escaped in the pairs.
+TRANSLATE_AWK='
+function esc(t) { gsub(/&/, "\\&amp;", t); gsub(/</, "\\&lt;", t); gsub(/>/, "\\&gt;", t); return t }
+function alnum(c) { return c ~ /^[A-Za-z0-9]$/ }
+function parts(t, arr,    n, e) {
+    n = 0
+    while ((e = index(t, "{}")) > 0) { arr[++n] = substr(t, 1, e - 1); t = substr(t, e + 2) }
+    arr[++n] = t; return n
+}
+# Text j at position i of s? Sets RES (its translation) and REND (next position).
+# The values in {} are translated too (e.g. "daily" in "(schedule: daily)").
+function match_at(s, i, j,    p1, pos, k, lit, rest, e, cap, res, last) {
+    p1 = KP[j, 1]
+    if (substr(s, i, length(p1)) != p1) return 0
+    if (alnum(substr(p1, 1, 1)) && i > 1 && alnum(substr(s, i - 1, 1))) return 0
+    pos = i + length(p1); res = VP[j, 1]
+    for (k = 2; k <= NP[j]; k++) {
+        lit = KP[j, k]; rest = substr(s, pos); e = index(rest, lit)
+        if (e <= 1) return 0
+        cap = substr(rest, 1, e - 1)
+        if (cap ~ /[()|<>]/) return 0
+        res = res walk(cap, 0) VP[j, k]; pos += e - 1 + length(lit)
+    }
+    last = KP[j, NP[j]]
+    if (alnum(substr(last, length(last), 1)) && alnum(substr(s, pos, 1))) return 0
+    RES = res; REND = pos; return 1
+}
+# top = 1: a whole line (texts found in it are in C[1..NC]); 0: a value in {}
+# (all texts tried, those marked ^ never).
+function walk(s, top,    out, i, n, st, ch, e, hit, q, j, nq) {
+    out = ""; i = 1; n = length(s); st = top; nq = top ? NC : m
+    while (i <= n) {
+        ch = substr(s, i, 1)
+        if (mode == "html" && ch == "<") {
+            e = index(substr(s, i), ">")
+            if (!e) { out = out substr(s, i); break }
+            out = out substr(s, i, e); i += e; continue
+        }
+        hit = 0
+        for (q = 1; q <= nq; q++) {
+            j = top ? C[q] : ORD[q]
+            if (A[j] && !st) continue
+            if (!match_at(s, i, j)) continue
+            out = out RES; i = REND; hit = 1; st = 0; break
+        }
+        if (hit) continue
+        out = out ch; if (ch != " " && ch != "=") st = 0; i++
+    }
+    return out
+}
+BEGIN {
+    nl = split(ENVIRON["DM_PAIRS"], L, "\n"); m = 0
+    for (x = 1; x <= nl; x++) {
+        l = L[x]; sub(/\r$/, "", l)
+        if (l ~ /^#/) continue
+        p = index(l, " => "); if (p < 2) continue
+        k = substr(l, 1, p - 1); v = substr(l, p + 4)
+        a = 0; if (substr(k, 1, 1) == "^") { a = 1; k = substr(k, 2) }
+        if (v == "" || length(k) < 2) continue
+        if (mode == "html") { k = esc(k); v = esc(v) }
+        nk = parts(k, kp); nv = parts(v, vp)
+        if (nk != nv) continue
+        bad = 0; for (y = 1; y <= nk; y++) if (kp[y] == "") bad = 1
+        if (bad) continue
+        id = a SUBSEP k; if (id in seen) continue; seen[id] = 1
+        m++; A[m] = a; NP[m] = nk; KL[m] = length(k)
+        for (y = 1; y <= nk; y++) { KP[m, y] = kp[y]; VP[m, y] = vp[y] }
+        o = m; while (o > 1 && KL[ORD[o - 1]] < KL[m]) { ORD[o] = ORD[o - 1]; o-- }
+        ORD[o] = m
+    }
+}
+{
+    NC = 0
+    for (q = 1; q <= m; q++) { j = ORD[q]; if (index($0, KP[j, 1])) C[++NC] = j }
+    if (!NC) print; else print walk($0, 1)
+}'
+
+# translate html|text: stdin -> stdout, the English text unchanged on any problem.
+translate() {
+    _in=$(cat)
+    _pairs=$(lang_pairs 2>/dev/null | grep ' => ' | grep -v '^#')
+    if [ -z "$_pairs" ]; then printf '%s\n' "$_in"; return 0; fi
+    _out=$(printf '%s\n' "$_in" | DM_PAIRS="$_pairs" awk -v mode="$1" "$TRANSLATE_AWK" 2>/dev/null); _rc=$?
+    if [ "$_rc" -eq 0 ] && [ -n "$_out" ] && \
+        [ "$(printf '%s\n' "$_out" | wc -l)" = "$(printf '%s\n' "$_in" | wc -l)" ]; then
+        printf '%s\n' "$_out"
+    else
+        log "Mail language: translation failed - e-mail sent in English"
+        printf '%s\n' "$_in"
+    fi
+}
+
 send_digest() {
     method=$(mail_method)
     case "$method" in
@@ -404,7 +537,8 @@ send_digest() {
     # mail clients (Outlook renders HTML with Word).
     subject="$SUBJECT"
     [ -n "$DM_TEST" ] && subject="[TEST] $SUBJECT"    # tell a test from the daily e-mail
-    mailbody=$(printf '%s\n' "$BODY" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g' | mail_style "$tag")
+    mailbody=$(printf '%s\n' "$BODY" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g' | mail_style "$tag" | translate html)
+    subject=$(printf '%s\n' "$subject" | translate text)
     try=1; rc=0; tries="${SEND_TRIES:-3}"
     [ "$method" = none ] && { tries=0; rc=1; }
     while [ "$try" -le "$tries" ]; do
@@ -481,7 +615,8 @@ Seen $(date -d "@$NOW" '+%a %d %b %H:%M'). The next daily digest lists $it again
 To stop these e-mails: menu option 5, setting 11.
 
 DigestMerlin v$VERSION"
-    mailbody=$(printf '%s\n' "$body" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
+    mailbody=$(printf '%s\n' "$body" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g' | translate html)
+    subject=$(printf '%s\n' "$subject" | translate text)
     if send_once; then
         # shellcheck disable=SC2174
         mkdir -p -m 700 "$DM_STATE"
@@ -643,6 +778,12 @@ remove_legacy_sections() {
     return 0
 }
 
+# A data file: "folder/file", one level, plain names, never state/ or sections/.
+valid_data_path() {
+    case "$1" in */*/*|*..*|state/*|sections/*) return 1 ;; esac
+    echo "$1" | grep -E -q '^[a-z][a-z0-9-]*/[A-Za-z0-9][A-Za-z0-9._-]*$'
+}
+
 # Download all files into $1. Returns 1 on any failure. The list of sections
 # is read from the NEW main script, so sections added by a later version are
 # downloaded too (this running copy may be older).
@@ -660,6 +801,15 @@ fetch_release() {
         curl -fsSL --max-time 30 "$REPO/sections/$f" -o "$1/sections/$f" || return 1
         sh -n "$1/sections/$f" 2>/dev/null || return 1
     done
+    # Data files announced by the NEW main script (none before v0.6.1).
+    data=$(sed -n 's/^DATA_FILES="\(.*\)"$/\1/p' "$1/digestmerlin.sh" | head -1)
+    printf '%s\n' "$data" > "$1/.datafiles"
+    for f in $data; do
+        valid_data_path "$f" || return 1
+        mkdir -p "$1/${f%/*}" || return 1
+        curl -fsSL --max-time 30 "$REPO/$f" -o "$1/$f" || return 1
+        [ -s "$1/$f" ] || return 1
+    done
 }
 
 # Install the files downloaded in $1, all or nothing: every file is first
@@ -674,6 +824,13 @@ $DM_DIR/digestmerlin.conf.sample|$1/digestmerlin.conf.sample"
     for f in $files; do
         staged="$staged
 $DM_DIR/sections/$f|$1/sections/$f"
+    done
+    data=$(cat "$1/.datafiles" 2>/dev/null)
+    for f in $data; do
+        valid_data_path "$f" || return 1
+        mkdir -p "$DM_DIR/${f%/*}" || return 1
+        staged="$staged
+$DM_DIR/$f|$1/$f"
     done
     ok=1
     printf '%s\n' "$staged" > "$1/.staged"
@@ -700,6 +857,14 @@ $DM_DIR/sections/$f|$1/sections/$f"
     fi
     [ "$ok" = "1" ] && remove_legacy_sections "$files"
     [ "$ok" = "1" ] && printf '%s\n' "$files" > "$DM_DIR/.files"
+    # Same for data files: only those of our own previous list are removed.
+    if [ "$ok" = "1" ]; then
+        for f in $(cat "$DM_DIR/.datafiles" 2>/dev/null); do
+            case " $data " in *" $f "*) ;; *) valid_data_path "$f" && rm -f "$DM_DIR/$f" ;; esac
+        done
+        printf '%s\n' "$data" > "$DM_DIR/.datafiles"
+        for f in $data; do chmod 755 "$DM_DIR/${f%/*}"; chmod 644 "$DM_DIR/$f"; done
+    fi
     chmod 700 "$DM_DIR"
     chmod 755 "$DM_DIR/sections" "$SCRIPT_PATH" "$DM_DIR"/sections/*.sh
     chmod 644 "$DM_DIR/digestmerlin.conf.sample"
@@ -732,10 +897,56 @@ do_update() {
     new=$(sed -n 's/^VERSION="\(.*\)"$/\1/p' "$SCRIPT_PATH" | head -1)
     rm -rf "$tmp"
     log "Installed v$new (was v${old:-?})"
-    add_shortcut >/dev/null
-    watch_sync
+    # From v0.6.1 on, the version just installed finishes its own install, so
+    # that what it brings new is set up by its own code, not by this older one.
+    if grep -q '^    postupdate) ' "$SCRIPT_PATH"; then
+        sh "$SCRIPT_PATH" postupdate "${old:-}" || log "WARNING: v$new could not finish its install - run the update again"
+    else
+        add_shortcut >/dev/null
+        watch_sync
+    fi
     say "DigestMerlin v$new installed."
     return 0
+}
+
+# Data files missing - after an update made by v0.6.0 or older, whose updater
+# cannot fetch them: downloaded here, from the digest and the menu. All or
+# nothing, quiet; when it fails, the next digest tries again.
+complete_install() {
+    miss=""
+    for f in $DATA_FILES; do [ -s "$DM_DIR/$f" ] || miss="$miss $f"; done
+    [ -n "$miss" ] || return 0
+    curl --version >/dev/null 2>&1 || return 1
+    ctmp="/tmp/digestmerlin-data.$$"; rm -rf "$ctmp"
+    for f in $miss; do
+        if ! valid_data_path "$f" || ! mkdir -p "$ctmp/${f%/*}" \
+            || ! curl -fsSL --max-time 20 "$REPO/$f" -o "$ctmp/$f" 2>/dev/null || [ ! -s "$ctmp/$f" ]; then
+            rm -rf "$ctmp"
+            log "Language files not downloaded yet - tried again with the next digest"
+            return 1
+        fi
+    done
+    for f in $miss; do
+        if ! { mkdir -p "$DM_DIR/${f%/*}" && cp "$ctmp/$f" "$DM_DIR/$f.new"; }; then
+            for g in $miss; do rm -f "$DM_DIR/$g.new"; done
+            rm -rf "$ctmp"; log "Language files not installed (is /jffs full?)"
+            return 1
+        fi
+    done
+    for f in $miss; do
+        mv "$DM_DIR/$f.new" "$DM_DIR/$f"; chmod 755 "$DM_DIR/${f%/*}"; chmod 644 "$DM_DIR/$f"
+    done
+    rm -rf "$ctmp"
+    printf '%s\n' "$DATA_FILES" > "$DM_DIR/.datafiles"
+    log "Installed:$miss"
+    return 0
+}
+
+# Run by the update, with the NEW version, once its files are in place ($1 =
+# the version it replaces, empty on a first install).
+do_postupdate() {
+    add_shortcut >/dev/null
+    watch_sync
 }
 
 # First install (install.sh and amtm call it): files, then the schedule question.
@@ -790,7 +1001,8 @@ DEVICES_IGNORE_PRIVATE_MAC|0|New devices: ignore private MACs (0 or 1)|bool|1 = 
 SUBJECT_PREFIX||Text in front of the e-mail subject|text|Added in front of the subject, e.g. to tell several routers apart.|[Home]
 UPDATE_CHECK|1|Update check in the digest (0 or 1)|bool|1 = the digest says when a new DigestMerlin version is on GitHub (one check per digest, nothing is sent).|1 to check, 0 to never check
 WAN_PLANNED||WAN: planned drops window (shown, no alert)|window|WAN drops that start in this window are still shown, but raise no alert - e.g. during a scheduled modem reboot. A day (Mon...Sun, or daily) and a time range, router time.|Sun 03:00-03:10
-NEW_DEVICE_ALERT|0|New devices: instant e-mail (0 or 1)|bool|1 = an e-mail within 2 minutes when an unknown device joins the network, besides the daily digest (which lists it again). Follows setting 7 for private MACs.|1 to be told at once, 0 for the daily digest only"
+NEW_DEVICE_ALERT|0|New devices: instant e-mail (0 or 1)|bool|1 = an e-mail within 2 minutes when an unknown device joins the network, besides the daily digest (which lists it again). Follows setting 7 for private MACs.|1 to be told at once, 0 for the daily digest only
+MAIL_LANG|en|Mail language|lang|Language of the e-mails (digest and new device e-mail). The menu and the logs stay in English; dates stay in English for now.|fr"
 
 pause() { printf '\n Press Enter to continue... '; read -r _ || exit 0; }
 
@@ -970,6 +1182,31 @@ EOF_LINE
         case "$kind" in text|window) none="none" ;; *) none="off" ;; esac
         cur=$(conf_get "$key"); [ -f "$DM_CONF" ] && grep -q "^$key=" "$DM_CONF" || cur=$def
         printf '\033[2J\033[H'
+        if [ "$kind" = "lang" ]; then
+            say " $desc"
+            say ""
+            say " $help"
+            say ""
+            if [ "$(lang_list | wc -l)" -lt 2 ]; then
+                say " The language files are not installed yet."
+                printf ' Download them now? [Y/n] '
+                read -r ans || exit 0
+                case "$ans" in n|N) continue ;; esac
+                complete_install || { say " Download failed - try again later (is the router online?)."; pause; continue; }
+                say ""
+            fi
+            lang_list | while IFS='|' read -r c nm; do
+                printf '   %-3s %s%s\n' "$c" "$nm" "$( [ "$c" = "${cur:-en}" ] && echo '   <- current')"
+            done
+            printf '\n Language code (e.g. fr), Enter to keep the current one: '
+            read -r val || exit 0
+            [ -n "$val" ] || continue
+            case "$val" in [a-z][a-z]) ;; *) say " Please enter one of the codes above."; pause; continue ;; esac
+            lang_list | grep -q "^$val|" || { say " Please enter one of the codes above."; pause; continue; }
+            conf_set "$key" "$val" || continue
+            MAIL_LANG=$val
+            continue
+        fi
         say " ${desc%% (*}"
         say ""
         say " $help"
@@ -1069,6 +1306,7 @@ menu_uninstall() {
 menu() {
     # Users updating from v0.4 get the shortcut the first time they open the menu.
     SHORTCUT_NEW=$(add_shortcut)
+    complete_install
     while :; do
         menu_header
         say "   1. Preview the digest (nothing is sent)"
@@ -1120,7 +1358,8 @@ case "$1" in
     preview)
         DM_PREVIEW=1; export DM_PREVIEW
         build_digest || exit 1
-        say "Subject: $SUBJECT"; say ""; say "$BODY"
+        say "Subject: $(printf '%s\n' "$SUBJECT" | translate text)"; say ""
+        printf '%s\n' "$BODY" | translate text
         ;;
     run)
         # One run at a time (cron and a manual run together would send the
@@ -1141,6 +1380,7 @@ case "$1" in
         echo $$ > "$LOCK/pid"
         LOCK_HELD="$LOCK"
         log "Building the daily digest"
+        complete_install
         build_digest || { rm -rf "$LOCK"; exit 1; }
         send_digest; rc=$?
         rm -rf "$LOCK"
@@ -1158,6 +1398,7 @@ case "$1" in
     unschedule) do_unschedule ;;
     setup|-setup) do_setup ;;
     update)     do_update ;;
+    postupdate) do_postupdate "$2" ;;
     amtmupdate)
         # amtm: "amtmupdate check" = is automatic update supported (0 = yes);
         # "amtmupdate" = update now, without any question.
