@@ -66,7 +66,7 @@ None
 
 Generated 2026-10-12 22:36 - covers the last 24h
 Sections: 7 OK
-DigestMerlin v0.5.0
+DigestMerlin v0.6.0
 ```
 
 When something is wrong, the subject becomes `[ATTENTION]` and the ALERTS section says what, e.g.
@@ -81,8 +81,8 @@ When something is wrong, the subject becomes `[ATTENTION]` and the ALERTS sectio
 | VPN | WireGuard and/or OpenVPN clients; VPNMON-R3 optional | each enabled WireGuard client (endpoint, last handshake), each OpenVPN client that is running or set to start with the WAN, VPNMON-R3 restarts (with the 7-day count when there were 3 or more) | interface down, no handshake for 10 min (setting) or never, OpenVPN error, still connecting, connected without its interface, or stopped while set to start with WAN, VPNMON-R3 not running |
 | Speed tests | spdMerlin | latest result per interface; **To watch** when a download or upload is 30% or more below its usual best at the same time of day (see below) | no new result for 25 h (interfaces excluded from automatic tests in spdMerlin are shown, never alerted), failed tests |
 | Backups | BACKUPMON | last NVRAM / JFFS / EXT Drive (USB) backup | no BACKUPMON log or no completed NVRAM backup, last NVRAM backup older than 26 h, BACKUPMON errors |
-| New devices | DHCP (dnsmasq) | MAC addresses never seen before | a new device joined the LAN |
-| System | — (Entware `findutils` for the permission check) | firmware (and pending MerlinAU update), uptime, WAN link drops (with the 7-day count when there were 2 or more), load, memory, temperature, storage, files writable by anyone in /jffs/scripts, /jffs/addons and /jffs/configs | firmware changed, WAN link dropped (outside a planned window, see Settings), disk almost full, a script writable by anyone, CPU temperature (optional), no reboot for too long (optional) |
+| New devices | DHCP (dnsmasq) | MAC addresses never seen before; optionally an **e-mail within 2 minutes** (see below) | a new device joined the LAN (not again for a device already announced by e-mail) |
+| System | — (Entware `findutils` for the permission check) | firmware (and pending MerlinAU update), uptime, WAN link drops (with the 7-day count when there were 2 or more), load, memory, temperature, storage, expiry of the router's HTTPS certificate, an nvram command stuck right now, files writable by anyone in /jffs/scripts, /jffs/addons and /jffs/configs | firmware changed, WAN link dropped (outside a planned window, see Settings), disk almost full, HTTPS certificate expiring within 30 days or expired, an nvram command stuck for more than 2 minutes, a script writable by anyone, CPU temperature (optional), no reboot for too long (optional) |
 
 **To watch.** Some changes are worth knowing about without being a problem yet. When a speed test
 result is 30% or more below the usual best of that interface **at the same time of day**, the digest
@@ -174,6 +174,15 @@ that moment (a TV, a printer, a console...) are reported once when they reconnec
 the following days: a good way to review everything connected to your network.
 After that, only devices never seen before are reported.
 
+**New device e-mail (optional).** With setting 11 (`NEW_DEVICE_ALERT`) on, DigestMerlin also checks
+every 2 minutes and e-mails you as soon as an unknown device joins the network, e.g.
+`[NEW DEVICE] RT-AX86U_PRO - MacBookAir` with its MAC, IP address and name. Several devices at once
+come in one e-mail. The next daily digest lists them again with `(alerted at Sat 08:06)`, without a
+second alert. Setting 7 (private MACs) applies to both. A first install asks whether to turn it on;
+an update never turns it on by itself. Turning it on or off in the menu adds or removes its cron job
+and one line, marked `# DigestMerlinWatch`, in `/jffs/scripts/services-start`. The same command is
+`sh /jffs/scripts/digestmerlin.sh watch`.
+
 ## If no e-mail arrives
 
 1. Open the menu and look at the `E-mail` line of the header:
@@ -209,6 +218,7 @@ The easiest way to change them is the menu: option 4 for the sections, option 5 
 | `SUBJECT_PREFIX` | 5.8 | (none) | Text added in front of the e-mail subject. See below. |
 | `UPDATE_CHECK` | 5.9 | 1 | `1` = the digest tells you when a new DigestMerlin version is on GitHub. See below. |
 | `WAN_PLANNED` | 5.10 | (none) | A window when WAN drops are expected, e.g. `"Sun 03:00-03:10"`: they are shown, but raise no alert. See below. |
+| `NEW_DEVICE_ALERT` | 5.11 | 0 | `1` = an e-mail within 2 minutes when an unknown device joins the network (see Usage). Turn it on from the menu, which also creates its cron job. |
 
 **Why two alerts are off by default.** The temperature is shown in the SYSTEM section when the router reports it (no temperature shown means no temperature alert is possible),
 but what is normal depends on the model: around 65C on some routers, 80C or more on others. A fixed
@@ -292,7 +302,7 @@ Menu option 7, or:
 sh /jffs/scripts/digestmerlin.sh uninstall
 ```
 
-Both ask first, then remove everything: schedule, `digestmerlin` shortcut, settings, history and files - including any section
+Both ask first, then remove everything: schedules (daily and new-device e-mails), `digestmerlin` shortcut, settings, history and files - including any section
 you added in `/jffs/addons/digestmerlin.d/sections/` (copy it elsewhere first if you want to keep it).
 
 ## License
