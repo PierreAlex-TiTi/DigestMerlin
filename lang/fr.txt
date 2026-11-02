@@ -2,7 +2,7 @@
 # DigestMerlin - French text of the e-mails (setting MAIL_LANG=fr, menu option 5).
 # Read only, never run.
 #
-# One line per text:   English text => Texte français
+# One line per text:   English text => Translated text
 #   " => " with one space on each side; any other space is part of the text.
 #   {}  stands for a value (a number, a date, a name...): the same number of {}
 #       on both sides, in the same order. A text can neither start nor end with {}.
