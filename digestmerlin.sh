@@ -1,7 +1,7 @@
 #!/bin/sh
 # shellcheck disable=SC2034
 version=0.7.0
-VERSION="0.7.0-test4"
+VERSION="0.7.0-test5"
 # Both lines above carry the same release number (a test build adds "-testN"
 # to the second only): amtm reads the first, menus of v0.2.0 read the second. Keep them on top, before any other mention.
 #
@@ -593,6 +593,8 @@ do_watch() {
     lk=/tmp/digestmerlin-devices.lock
     if ! mkdir "$lk" 2>/dev/null; then
         p=$(cat "$lk/pid" 2>/dev/null)
+        # Just created by the digest, which has not written its pid yet.
+        [ -n "$p" ] || { sleep 2; p=$(cat "$lk/pid" 2>/dev/null); }
         [ -n "$p" ] && kill -0 "$p" 2>/dev/null && return 0     # the digest is reading the list
         rm -rf "$lk"; mkdir "$lk" 2>/dev/null || return 0
     fi
@@ -917,6 +919,7 @@ complete_install() {
     for f in $DATA_FILES; do [ -s "$DM_DIR/$f" ] || miss="$miss $f"; done
     [ -n "$miss" ] || return 0
     curl --version >/dev/null 2>&1 || return 1
+    [ -t 1 ] && say " Downloading the language files..."     # menu: never a silent wait
     ctmp="/tmp/digestmerlin-data.$$"; rm -rf "$ctmp"
     for f in $miss; do
         if ! valid_data_path "$f" || ! mkdir -p "$ctmp/${f%/*}" \
