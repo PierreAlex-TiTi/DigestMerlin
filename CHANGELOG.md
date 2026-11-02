@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.7.0 - 2026-11-02
+- **E-mail in your language** (setting 12 `MAIL_LANG`): English (default), Français, Deutsch,
+  Español, Italiano. The digest and the new device e-mail are translated; the menu, the logs and
+  the dates stay in English. The subject tags ([OK], [ATTENTION], [NEW DEVICE]) are not translated,
+  so mail filters keep working. An update never changes the language; the menu shows it.
+- Language files in `/jffs/addons/digestmerlin.d/lang/` (plain text, one `English => translation`
+  line per text). Your own wording in `lang/custom.txt`: read first, never touched by an update.
+  The digest is still built in English: a text missing from a file stays in English, and if
+  anything goes wrong the e-mail is sent in English. German, Spanish and Italian are first
+  versions: corrections from native speakers are welcome.
+- Update: the new version now finishes its own install, and the update can install data files
+  (such as the language files). After an update from v0.6.0 or older, whose updater cannot fetch
+  them, v0.7.0 downloads them itself at the next digest or when the menu is opened.
+- Fix: the new device e-mail job could take over the device-list lock while the digest was
+  creating it (at worst a device reported twice).
+- Fix: without `timeout` and `usleep`, a stuck nvram read could hold a section about 50 s
+  instead of 5 s.
+
 ## v0.6.0 - 2026-11-01
 - **New device e-mail** (optional, setting 11 `NEW_DEVICE_ALERT`): an e-mail within 2 minutes when
   an unknown device joins the network, besides the daily digest, which lists it again with

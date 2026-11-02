@@ -66,7 +66,7 @@ None
 
 Generated 2026-10-12 22:36 - covers the last 24h
 Sections: 7 OK
-DigestMerlin v0.6.0
+DigestMerlin v0.7.0
 ```
 
 When something is wrong, the subject becomes `[ATTENTION]` and the ALERTS section says what, e.g.
@@ -183,6 +183,16 @@ an update never turns it on by itself. Turning it on or off in the menu adds or 
 and one line, marked `# DigestMerlinWatch`, in `/jffs/scripts/services-start`. The same command is
 `sh /jffs/scripts/digestmerlin.sh watch`.
 
+**Mail language.** Setting 12 (`MAIL_LANG`) sends the digest and the new device e-mail in English
+(default), Français, Deutsch, Español or Italiano; the menu lists the languages installed. The menu,
+the logs and the dates stay in English, and the subject tags (`[OK]`, `[ATTENTION]`, `[NEW DEVICE]`)
+are not translated, so mail filters keep working. The digest is still built in English: only the text
+that leaves by e-mail is translated, and if anything goes wrong it is sent in English. The language
+files are plain text in `/jffs/addons/digestmerlin.d/lang/`, one `English text => translation` line
+per text. For your own wording, put the same kind of lines in `lang/custom.txt`: it is read first
+and never touched by an update. The German, Spanish and Italian files are first versions -
+corrections from native speakers are welcome.
+
 ## If no e-mail arrives
 
 1. Open the menu and look at the `E-mail` line of the header:
@@ -219,6 +229,7 @@ The easiest way to change them is the menu: option 4 for the sections, option 5 
 | `UPDATE_CHECK` | 5.9 | 1 | `1` = the digest tells you when a new DigestMerlin version is on GitHub. See below. |
 | `WAN_PLANNED` | 5.10 | (none) | A window when WAN drops are expected, e.g. `"Sun 03:00-03:10"`: they are shown, but raise no alert. See below. |
 | `NEW_DEVICE_ALERT` | 5.11 | 0 | `1` = an e-mail within 2 minutes when an unknown device joins the network (see Usage). Turn it on from the menu, which also creates its cron job. |
+| `MAIL_LANG` | 5.12 | en | Language of the e-mails: `en`, `fr`, `de`, `es` or `it` (see Usage). |
 
 **Why two alerts are off by default.** The temperature is shown in the SYSTEM section when the router reports it (no temperature shown means no temperature alert is possible),
 but what is normal depends on the model: around 65C on some routers, 80C or more on others. A fixed
@@ -292,6 +303,7 @@ stopped after 5 s), `fmt_age`, `fmt_time`, and `state_get` / `state_set` to reme
 /jffs/addons/digestmerlin.d/sections/        one script per section
 /jffs/addons/digestmerlin.d/digestmerlin.conf    your settings (optional)
 /jffs/addons/digestmerlin.d/state/           values remembered between runs
+/jffs/addons/digestmerlin.d/lang/            e-mail languages (custom.txt: your own wording)
 ```
 
 ## Uninstall
