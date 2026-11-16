@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.7.1 - 2026-11-15
+- Mail language: **dates are translated** too - day and month names ("dim. 15 nov. 11:25"), and
+  the "d" of durations in French and Italian ("3j16h"). They come from the `@Mon => ...` lines at
+  the end of each language file; your own in `lang/custom.txt`.
+- VPN: **To watch** when VPNMON-R3 restarted the same tunnel 10 times or more in 24 h (seen on a
+  router: 67 restarts in one night, every server of the list being on the same failing network).
+  The digest stays OK.
+- Fix (mail language): "excluded from automatic tests" and "automatic tests off" stayed in
+  English in the speed test lines.
+
 ## v0.7.0 - 2026-11-02
 - **E-mail in your language** (setting 12 `MAIL_LANG`): English (default), Français, Deutsch,
   Español, Italiano. The digest and the new device e-mail are translated; the menu, the logs and
