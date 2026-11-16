@@ -9,7 +9,8 @@
 #       on both sides, in the same order. A text can neither start nor end with {}.
 #   ^   at the start: only when the text starts the line (titles...).
 # Lines starting with # are ignored. A text missing here stays in English.
-# Dates and days stay in English for now.
+# @Mon ... @Dec (end of this file): day and month names of the dates; @day-letter: the
+#   "d" of durations such as 3d16h. A name missing here stays in English.
 #
 # Your own wording: the same kind of lines in lang/custom.txt (same folder).
 # It is read first and never touched by an update.
@@ -125,12 +126,14 @@ VPN: OpenVPN client {} should start with the WAN but is stopped => VPN: el clien
 VPN: VPNMON-R3 is installed but not running - tunnels are not monitored => VPN: VPNMON-R3 está instalado pero no en marcha - los túneles no se supervisan
 ^Tunnel restarts by VPNMON-R3 ({}h): => Reinicios de túnel por VPNMON-R3 ({} h):
 | 7 days: => | 7 días:
+restarted {} times in {}h by VPNMON-R3 => reiniciado {} veces en {} h por VPNMON-R3
+restarted {} times in {}h => reiniciado {} veces en {} h
 # --- SPEED TESTS
 ^SPEED TESTS (spdMerlin) => PRUEBAS DE VELOCIDAD (spdMerlin)
 ^No results yet => Aún no hay resultados
 down / {} up Mbps, => Mbps de bajada / {} Mbps de subida,
-, excluded from automatic tests => , excluido de las pruebas automáticas
-, automatic tests off => , pruebas automáticas desactivadas
+excluded from automatic tests => excluido de las pruebas automáticas
+automatic tests off => pruebas automáticas desactivadas
 vs its best at this time of day ({} Mbps) => respecto a su mejor resultado a esta hora ({} Mbps)
 vs its best at this time of day => respecto a su mejor resultado a esta hora
 download - => bajada -
@@ -198,3 +201,24 @@ System: {} script(s) writable by anyone - they run as root (e.g. {}) - fix with 
 ^Data files writable by anyone: => Archivos de datos con permisos de escritura para cualquier usuario:
 ^amtm files writable by anyone: {} (amtm re-creates them on update) => Archivos de amtm con permisos de escritura para cualquier usuario: {} (amtm los recrea al actualizarse)
 
+# --- Dates
+@Mon => lun.
+@Tue => mar.
+@Wed => mié.
+@Thu => jue.
+@Fri => vie.
+@Sat => sáb.
+@Sun => dom.
+@Jan => ene.
+@Feb => feb.
+@Mar => mar.
+@Apr => abr.
+@May => may.
+@Jun => jun.
+@Jul => jul.
+@Aug => ago.
+@Sep => sept.
+@Oct => oct.
+@Nov => nov.
+@Dec => dic.
+@day-letter => d

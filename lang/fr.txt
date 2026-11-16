@@ -8,7 +8,8 @@
 #       on both sides, in the same order. A text can neither start nor end with {}.
 #   ^   at the start: only when the text starts the line (titles...).
 # Lines starting with # are ignored. A text missing here stays in English.
-# Dates and days stay in English for now.
+# @Mon ... @Dec (end of this file): day and month names of the dates; @day-letter: the
+#   "d" of durations such as 3d16h. A name missing here stays in English.
 #
 # Your own wording: the same kind of lines in lang/custom.txt (same folder).
 # It is read first and never touched by an update.
@@ -124,12 +125,14 @@ VPN: OpenVPN client {} should start with the WAN but is stopped => VPN : le clie
 VPN: VPNMON-R3 is installed but not running - tunnels are not monitored => VPN : VPNMON-R3 est installé mais arrêté - les tunnels ne sont pas surveillés
 ^Tunnel restarts by VPNMON-R3 ({}h): => Redémarrages de tunnel par VPNMON-R3 ({} h) :
 | 7 days: => | 7 jours :
+restarted {} times in {}h by VPNMON-R3 => redémarré {} fois en {} h par VPNMON-R3
+restarted {} times in {}h => redémarré {} fois en {} h
 # --- SPEED TESTS
 ^SPEED TESTS (spdMerlin) => TESTS DE DÉBIT (spdMerlin)
 ^No results yet => Aucun résultat pour l'instant
 down / {} up Mbps, => Mbps en réception / {} Mbps en envoi,
-, excluded from automatic tests => , exclu des tests automatiques
-, automatic tests off => , tests automatiques désactivés
+excluded from automatic tests => exclu des tests automatiques
+automatic tests off => tests automatiques désactivés
 vs its best at this time of day ({} Mbps) => par rapport à son meilleur résultat à cette heure ({} Mbps)
 vs its best at this time of day => par rapport à son meilleur résultat à cette heure
 download - => réception -
@@ -196,3 +199,24 @@ System: the router's HTTPS certificate expires within 30 days ({}) => Système :
 System: {} script(s) writable by anyone - they run as root (e.g. {}) - fix with chmod o-w => Système : {} script(s) accessible(s) en écriture par tous - exécuté(s) en root (ex. {}) - corriger avec chmod o-w
 ^Data files writable by anyone: => Fichiers de données accessibles en écriture par tous :
 ^amtm files writable by anyone: {} (amtm re-creates them on update) => Fichiers amtm accessibles en écriture par tous : {} (amtm les recrée à sa mise à jour)
+# --- Dates
+@Mon => lun.
+@Tue => mar.
+@Wed => mer.
+@Thu => jeu.
+@Fri => ven.
+@Sat => sam.
+@Sun => dim.
+@Jan => janv.
+@Feb => févr.
+@Mar => mars
+@Apr => avr.
+@May => mai
+@Jun => juin
+@Jul => juil.
+@Aug => août
+@Sep => sept.
+@Oct => oct.
+@Nov => nov.
+@Dec => déc.
+@day-letter => j
