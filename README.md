@@ -107,8 +107,10 @@ A VPN tunnel is only compared with its results **on the same VPN server**: when 
 you move it to another server, its comparisons start again (the change itself is shown in the
 VPN section), so a slower new server is not reported as a slow tunnel every evening.
 spdMerlin keeps only its last 10 results, so DigestMerlin keeps its own 30-day history of them
-(`state/speed_<interface>.hist`, about 120 lines each). Comparisons start once 7 results of the
-same time of day are known, i.e. after about a week.
+(`state/speed_<interface>.hist`, about 120 lines each). Comparisons start once 3 results of the
+same time of day are known, i.e. after 3 days (also after a change of VPN server). The results
+made on the day of a server change count for no server, as the digest cannot tell which of them
+were made before the change.
 
 ## Requirements
 

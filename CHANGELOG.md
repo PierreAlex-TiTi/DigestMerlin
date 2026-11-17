@@ -7,6 +7,12 @@
 - VPN: **To watch** when VPNMON-R3 restarted the same tunnel 10 times or more in 24 h (seen on a
   router: 67 restarts in one night, every server of the list being on the same failing network).
   The digest stays OK.
+- Speed tests: comparisons start after **3 results** of the same time of day instead of 7, i.e.
+  3 days after a change of VPN server instead of a week (with a 12-server list, VPNMON-R3 changes
+  server often). With 3 results the reference is the lowest of them, so a line means "30% below
+  every earlier result at this time on this server".
+- Fix (speed tests): after a change of VPN server, the results of that day were all filed under
+  the new server, even those made before the change. They now count for no server.
 - Fix (mail language): "excluded from automatic tests" and "automatic tests off" stayed in
   English in the speed test lines.
 
