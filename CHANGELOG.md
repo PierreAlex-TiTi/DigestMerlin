@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.7.1 - 2026-11-15
+## v0.7.1 - 2026-11-19
 - Mail language: **dates are translated** too - day and month names ("dim. 15 nov. 11:25"), and
   the "d" of durations in French and Italian ("3j16h"). They come from the `@Mon => ...` lines at
   the end of each language file; your own in `lang/custom.txt`.
