@@ -12,7 +12,7 @@ SPEEDTEST_MAX_AGE_H="${SPEEDTEST_MAX_AGE_H:-25}"
 HIST_DAYS=30        # history kept
 SLOT_S=5400         # "same time of day" = within 90 minutes
 WATCH_RANK=3        # usual best = 3rd best result of the slot
-WATCH_MIN=7         # results needed in the slot before any comparison
+WATCH_MIN=3         # results needed in the slot before any comparison (= days, one test per slot a day)
 WATCH_PCT=30        # flagged when this % or more below the usual best
 
 # VPN server in use for a tunnel interface (spdMerlin name), empty for the WAN.
@@ -30,14 +30,19 @@ vpn_server() {
 }
 
 # Merge the newest results of $1 (lastx file) into the history of interface $2.
-# New results get the VPN server $3 as a 4th field (tunnels only). A result
-# already in the history keeps its own server. Prints the merged history
-# (ts,down,up[,server]; oldest first); saves it unless preview.
+# New results get the VPN server $3 as a 4th field (tunnels only), unless the
+# server changed since the last digest: then nothing tells which results were
+# made on which server, so they get none and count for no server.
+# shortcut: a server changed and changed back between two digests goes unseen.
+# A result already in the history keeps its own server. Prints the merged
+# history (ts,down,up[,server]; oldest first); saves it unless preview.
 merge_history() {
     m_h="$DM_STATE/speed_$2.hist"
     m_t="/tmp/digestmerlin-spd.$$"
+    m_srv=$3; m_prev=$(cat "$DM_STATE/speed_$2.srv" 2>/dev/null)
+    [ -n "$m_prev" ] && [ "$m_prev" != "$3" ] && m_srv=""
     { cat "$m_h" 2>/dev/null
-      awk -F, -v srv="$3" '$1 ~ /^[0-9]+$/ && $2 ~ /^[0-9.]+$/ && $3 ~ /^[0-9.]+$/ {
+      awk -F, -v srv="$m_srv" '$1 ~ /^[0-9]+$/ && $2 ~ /^[0-9.]+$/ && $3 ~ /^[0-9.]+$/ {
           print $1 "," $2 "," $3 (srv != "" ? "," srv : "") }' "$1"
     } | awk -F, -v cut=$((NOW - HIST_DAYS * 86400)) '$1 >= cut && $1 <= '"$NOW"' + 3600 && !seen[$1]++' \
       | sort -t, -k1,1n > "$m_t" 2>/dev/null
@@ -45,6 +50,7 @@ merge_history() {
     if [ -z "$DM_PREVIEW" ] && [ -s "$m_t" ]; then
         # shellcheck disable=SC2174
         mkdir -p -m 700 "$DM_STATE" 2>/dev/null && cp "$m_t" "$m_h.new" 2>/dev/null && mv "$m_h.new" "$m_h" 2>/dev/null
+        [ -n "$3" ] && printf '%s\n' "$3" > "$DM_STATE/speed_$2.srv"
     fi
     rm -f "$m_t"
 }

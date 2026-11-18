@@ -12,6 +12,8 @@ short summary: what is fine, and what needs a look.
   e-mail), sending is tried up to 3 times, and an e-mail that could not be sent is reported in the next one.
 - **Uses the e-mail set up in amtm**, sent by Martinski's SendEmail add-on: no extra password to store.
 - **Modular**: one small script per section. Adding a section = dropping a file.
+- **Kept small on purpose**: light, self-contained, readable and non-intrusive. Features are added
+  sparingly.
 
 ## Example
 
@@ -66,7 +68,7 @@ None
 
 Generated 2026-10-12 22:36 - covers the last 24h
 Sections: 7 OK
-DigestMerlin v0.7.0
+DigestMerlin v0.7.1
 ```
 
 When something is wrong, the subject becomes `[ATTENTION]` and the ALERTS section says what, e.g.
@@ -78,7 +80,7 @@ When something is wrong, the subject becomes `[ATTENTION]` and the ALERTS sectio
 |---|---|---|---|
 | Skynet | Skynet (v9 for traffic counts) | blacklist size, last list refresh, download failures, blocked inbound/outbound traffic | blacklist not loaded or halved since the last digest, lists not refreshed on schedule, download failures, log collection stalled |
 | Diversion | Diversion | version and status, blocking list size and whether dnsmasq loads it, last list update, ads blocked this week (Diversion's daily count; right after its weekly reset, last week's total) | Diversion disabled or ad blocking off, list missing, empty, not loaded or halved since the last digest, list not updated on its weekly schedule, Diversion's files on the USB drive missing |
-| VPN | WireGuard and/or OpenVPN clients; VPNMON-R3 optional | each enabled WireGuard client (endpoint, last handshake), each OpenVPN client that is running or set to start with the WAN, VPNMON-R3 restarts (with the 7-day count when there were 3 or more) | interface down, no handshake for 10 min (setting) or never, OpenVPN error, still connecting, connected without its interface, or stopped while set to start with WAN, VPNMON-R3 not running |
+| VPN | WireGuard and/or OpenVPN clients; VPNMON-R3 optional | each enabled WireGuard client (endpoint, last handshake), each OpenVPN client that is running or set to start with the WAN, VPNMON-R3 restarts (with the 7-day count when there were 3 or more); **To watch** when one tunnel was restarted 10 times or more in 24 h | interface down, no handshake for 10 min (setting) or never, OpenVPN error, still connecting, connected without its interface, or stopped while set to start with WAN, VPNMON-R3 not running |
 | Speed tests | spdMerlin | latest result per interface; **To watch** when a download or upload is 30% or more below its usual best at the same time of day (see below) | no new result for 25 h (interfaces excluded from automatic tests in spdMerlin are shown, never alerted), failed tests |
 | Backups | BACKUPMON | last NVRAM / JFFS / EXT Drive (USB) backup | no BACKUPMON log or no completed NVRAM backup, last NVRAM backup older than 26 h, BACKUPMON errors |
 | New devices | DHCP (dnsmasq) | MAC addresses never seen before; optionally an **e-mail within 2 minutes** (see below) | a new device joined the LAN (not again for a device already announced by e-mail) |
@@ -94,6 +96,10 @@ All green.
 To watch: WGVPN1 upload -54% vs its best at this time of day
 ```
 
+The same goes for a tunnel that VPNMON-R3 restarted 10 times or more in 24 h (for instance when
+every server of its list is on the same failing network):
+`To watch: VPN WGC3 restarted 67 times in 24h by VPNMON-R3`.
+
 It is not an alert: the digest stays `[OK]`. The usual best is the 3rd best result of the last
 30 days within 90 minutes of the same time of day, so one lucky result does not become the
 reference, and evening congestion is compared with other evenings, never with mornings.
@@ -101,8 +107,10 @@ A VPN tunnel is only compared with its results **on the same VPN server**: when 
 you move it to another server, its comparisons start again (the change itself is shown in the
 VPN section), so a slower new server is not reported as a slow tunnel every evening.
 spdMerlin keeps only its last 10 results, so DigestMerlin keeps its own 30-day history of them
-(`state/speed_<interface>.hist`, about 120 lines each). Comparisons start once 7 results of the
-same time of day are known, i.e. after about a week.
+(`state/speed_<interface>.hist`, about 120 lines each). Comparisons start once 3 results of the
+same time of day are known, i.e. after 3 days (also after a change of VPN server). The results
+made on the day of a server change count for no server, as the digest cannot tell which of them
+were made before the change.
 
 ## Requirements
 
@@ -184,12 +192,12 @@ and one line, marked `# DigestMerlinWatch`, in `/jffs/scripts/services-start`. T
 `sh /jffs/scripts/digestmerlin.sh watch`.
 
 **Mail language.** Setting 12 (`MAIL_LANG`) sends the digest and the new device e-mail in English
-(default), Français, Deutsch, Español or Italiano; the menu lists the languages installed. The menu,
-the logs and the dates stay in English, and the subject tags (`[OK]`, `[ATTENTION]`, `[NEW DEVICE]`)
+(default), Français, Deutsch, Español or Italiano; the menu lists the languages installed. The menu and
+the logs stay in English, and the subject tags (`[OK]`, `[ATTENTION]`, `[NEW DEVICE]`)
 are not translated, so mail filters keep working. The digest is still built in English: only the text
 that leaves by e-mail is translated, and if anything goes wrong it is sent in English. The language
 files are plain text in `/jffs/addons/digestmerlin.d/lang/`, one `English text => translation` line
-per text. For your own wording, put the same kind of lines in `lang/custom.txt`: it is read first
+per text (day and month names: the `@Mon => ...` lines at the end of each file). For your own wording, put the same kind of lines in `lang/custom.txt`: it is read first
 and never touched by an update. The German, Spanish and Italian files are first versions -
 corrections from native speakers are welcome.
 

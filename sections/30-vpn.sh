@@ -3,6 +3,7 @@
 . "$(dirname "$0")/lib.sh"
 
 WG_HANDSHAKE_MAX="${WG_HANDSHAKE_MAX:-600}"   # seconds
+RESTART_WATCH=10                              # restarts of one tunnel in the window before "To watch"
 VR3="/jffs/scripts/vpnmon-r3.sh"
 VR3LOG="/jffs/addons/vpnmon-r3.d/vpnmon-r3.log"
 
@@ -96,6 +97,13 @@ if [ -f "$VR3" ]; then
         else
             echo "Tunnel restarts by VPNMON-R3 (${WINDOW_H}h): 0$week"
         fi
+        # A tunnel restarted over and over (e.g. a server list on one failing
+        # network) is something to watch, not an alert.
+        printf '%s\n' "$restarts" | awk -v min="$RESTART_WATCH" '{ c[$2]++ } END { for (s in c) if (c[s] >= min) print s, c[s] }' \
+            | sort | while read -r slot cnt; do
+            echo "  To watch: $slot restarted $cnt times in ${WINDOW_H}h"
+            add_watch "VPN $slot restarted $cnt times in ${WINDOW_H}h by VPNMON-R3"
+        done
     fi
 fi
 

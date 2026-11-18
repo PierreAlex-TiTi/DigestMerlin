@@ -1,7 +1,7 @@
 #!/bin/sh
 # shellcheck disable=SC2034
-version=0.7.0
-VERSION="0.7.0"
+version=0.7.1
+VERSION="0.7.1"
 # Both lines above carry the same release number (a test build adds "-testN"
 # to the second only): amtm reads the first, menus of v0.2.0 read the second. Keep them on top, before any other mention.
 #
@@ -474,6 +474,28 @@ function walk(s, top,    out, i, n, st, ch, e, hit, q, j, nq) {
     }
     return out
 }
+# Dates: day names before a number ("Sun 15 Nov 11:25", "Sun 03:00"), month names
+# between two numbers ("15 Nov 11:25", "24 Oct 2028"), and the "d" of durations
+# ("3d16h"), from the "@Mon => ..." lines. Anything else is left alone.
+function dates(s,    out, w, t, good) {
+    if (!nd) return s
+    out = ""
+    while (match(s, /(Mon|Tue|Wed|Thu|Fri|Sat|Sun|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) [0-9]/)) {
+        w = substr(s, RSTART, 3)
+        if (index("MonTueWedThuFriSatSun", w)) good = (RSTART == 1 || !alnum(substr(s, RSTART - 1, 1)))
+        else good = (RSTART > 2 && substr(s, RSTART - 2, 2) ~ /^[0-9] $/)
+        out = out substr(s, 1, RSTART - 1) ((good && (w in DT)) ? DT[w] : w); s = substr(s, RSTART + 3)
+    }
+    s = out s
+    if (!("day-letter" in DT)) return s
+    out = ""
+    while (match(s, /[0-9]+d[0-9]+h/)) {
+        t = substr(s, RSTART, RLENGTH)
+        if ((RSTART == 1 || !alnum(substr(s, RSTART - 1, 1))) && !alnum(substr(s, RSTART + RLENGTH, 1))) sub(/d/, DT["day-letter"], t)
+        out = out substr(s, 1, RSTART - 1) t; s = substr(s, RSTART + RLENGTH)
+    }
+    return out s
+}
 BEGIN {
     nl = split(ENVIRON["DM_PAIRS"], L, "\n"); m = 0
     for (x = 1; x <= nl; x++) {
@@ -481,6 +503,7 @@ BEGIN {
         if (l ~ /^#/) continue
         p = index(l, " => "); if (p < 2) continue
         k = substr(l, 1, p - 1); v = substr(l, p + 4)
+        if (substr(k, 1, 1) == "@") { if (v != "" && !(substr(k, 2) in DT)) { DT[substr(k, 2)] = (mode == "html") ? esc(v) : v; nd++ }; continue }
         a = 0; if (substr(k, 1, 1) == "^") { a = 1; k = substr(k, 2) }
         if (v == "" || length(k) < 2) continue
         if (mode == "html") { k = esc(k); v = esc(v) }
@@ -498,7 +521,7 @@ BEGIN {
 {
     NC = 0
     for (q = 1; q <= m; q++) { j = ORD[q]; if (index($0, KP[j, 1])) C[++NC] = j }
-    if (!NC) print; else print walk($0, 1)
+    if (!NC) print dates($0); else print dates(walk($0, 1))
 }'
 
 # translate html|text: stdin -> stdout, the English text unchanged on any problem.

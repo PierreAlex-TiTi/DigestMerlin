@@ -9,7 +9,8 @@
 #       on both sides, in the same order. A text can neither start nor end with {}.
 #   ^   at the start: only when the text starts the line (titles...).
 # Lines starting with # are ignored. A text missing here stays in English.
-# Dates and days stay in English for now.
+# @Mon ... @Dec (end of this file): day and month names of the dates; @day-letter: the
+#   "d" of durations such as 3d16h. A name missing here stays in English.
 #
 # Your own wording: the same kind of lines in lang/custom.txt (same folder).
 # It is read first and never touched by an update.
@@ -125,12 +126,14 @@ VPN: OpenVPN client {} should start with the WAN but is stopped => VPN: OpenVPN-
 VPN: VPNMON-R3 is installed but not running - tunnels are not monitored => VPN: VPNMON-R3 ist installiert, läuft aber nicht - die Tunnel werden nicht überwacht
 ^Tunnel restarts by VPNMON-R3 ({}h): => Tunnel-Neustarts durch VPNMON-R3 ({} h):
 | 7 days: => | 7 Tage:
+restarted {} times in {}h by VPNMON-R3 => wurde {}-mal in {} Std. von VPNMON-R3 neu gestartet
+restarted {} times in {}h => wurde {}-mal in {} Std. neu gestartet
 # --- SPEED TESTS
 ^SPEED TESTS (spdMerlin) => GESCHWINDIGKEITSTESTS (spdMerlin)
 ^No results yet => Noch keine Ergebnisse
 down / {} up Mbps, => Mbps Download / {} Mbps Upload,
-, excluded from automatic tests => , von automatischen Tests ausgeschlossen
-, automatic tests off => , automatische Tests aus
+excluded from automatic tests => von automatischen Tests ausgeschlossen
+automatic tests off => automatische Tests aus
 vs its best at this time of day ({} Mbps) => gegenüber seinem besten Wert zu dieser Tageszeit ({} Mbps)
 vs its best at this time of day => gegenüber seinem besten Wert zu dieser Tageszeit
 download - => Download -
@@ -198,3 +201,24 @@ System: {} script(s) writable by anyone - they run as root (e.g. {}) - fix with 
 ^Data files writable by anyone: => Für alle beschreibbare Datendateien:
 ^amtm files writable by anyone: {} (amtm re-creates them on update) => Für alle beschreibbare amtm-Dateien: {} (amtm erstellt sie beim Update neu)
 
+# --- Dates
+@Mon => Mo.
+@Tue => Di.
+@Wed => Mi.
+@Thu => Do.
+@Fri => Fr.
+@Sat => Sa.
+@Sun => So.
+@Jan => Jan.
+@Feb => Feb.
+@Mar => März
+@Apr => Apr.
+@May => Mai
+@Jun => Juni
+@Jul => Juli
+@Aug => Aug.
+@Sep => Sep.
+@Oct => Okt.
+@Nov => Nov.
+@Dec => Dez.
+@day-letter => d
