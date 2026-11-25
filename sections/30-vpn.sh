@@ -34,6 +34,35 @@ for n in 1 2 3 4 5; do
     fi
 done
 
+# --- WireGuard server of the router (wgs1), only when enabled: who connected
+# in the window. Peers are matched to the router's client list by tunnel
+# address, so no key is ever read.
+if [ "$(nv wgs1_enable)" = "1" ]; then
+    shown=1
+    if ! ip link show wgs1 >/dev/null 2>&1; then
+        echo "WireGuard server: on | DOWN (interface missing)"
+        add_alert "VPN: the WireGuard server is enabled but its interface wgs1 is down"
+    else
+        # "tunnel-address handshake-time" for each peer
+        peers=$( { wg show wgs1 allowed-ips; echo "--"; wg show wgs1 latest-handshakes; } 2>/dev/null \
+            | awk '$1 == "--" { h = 1; next } !h { a[$1] = $2; next } { print a[$1], $2 }')
+        n_cli=0; seen=""
+        for c in 1 2 3 4 5 6 7 8 9 10; do
+            [ "$(nv "wgs1_c${c}_enable")" = "1" ] || continue
+            n_cli=$((n_cli + 1))
+            aip=$(nv "wgs1_c${c}_aips"); name=$(nv "wgs1_c${c}_name")
+            hs=$(printf '%s\n' "$peers" | awk -v a="$aip" '$1 == a { print $2; exit }')
+            is_number "$hs" && [ "$hs" -ge "$SINCE" ] && [ "$hs" -le "$NOW" ] || continue
+            seen="${seen:+$seen, }${name:-client $c} (last seen $(date -d "@$hs" '+%H:%M' 2>/dev/null))"
+        done
+        if [ -n "$seen" ]; then
+            echo "WireGuard server: on | $n_cli client(s) | connected (${WINDOW_H}h): $seen"
+        else
+            echo "WireGuard server: on | $n_cli client(s) | no connection (${WINDOW_H}h)"
+        fi
+    fi
+fi
+
 # --- OpenVPN clients (1..5). State: 0 stopped, 1 connecting, 2 connected, -1 error.
 # A client is reported when it is running, or set to start with the WAN.
 eas=",$(nv vpn_clientx_eas),"
