@@ -68,7 +68,7 @@ None
 
 Generated 2026-10-12 22:36 - covers the last 24h
 Sections: 7 OK
-DigestMerlin v0.7.1
+DigestMerlin v0.7.2
 ```
 
 When something is wrong, the subject becomes `[ATTENTION]` and the ALERTS section says what, e.g.
@@ -80,7 +80,7 @@ When something is wrong, the subject becomes `[ATTENTION]` and the ALERTS sectio
 |---|---|---|---|
 | Skynet | Skynet (v9 for traffic counts) | blacklist size, last list refresh, download failures, blocked inbound/outbound traffic | blacklist not loaded or halved since the last digest, lists not refreshed on schedule, download failures, log collection stalled |
 | Diversion | Diversion | version and status, blocking list size and whether dnsmasq loads it, last list update, ads blocked this week (Diversion's daily count; right after its weekly reset, last week's total) | Diversion disabled or ad blocking off, list missing, empty, not loaded or halved since the last digest, list not updated on its weekly schedule, Diversion's files on the USB drive missing |
-| VPN | WireGuard and/or OpenVPN clients; VPNMON-R3 optional | each enabled WireGuard client (endpoint, last handshake), each OpenVPN client that is running or set to start with the WAN, VPNMON-R3 restarts (with the 7-day count when there were 3 or more); **To watch** when one tunnel was restarted 10 times or more in 24 h | interface down, no handshake for 10 min (setting) or never, OpenVPN error, still connecting, connected without its interface, or stopped while set to start with WAN, VPNMON-R3 not running |
+| VPN | WireGuard and/or OpenVPN clients, or the WireGuard server; VPNMON-R3 optional | each enabled WireGuard client (endpoint, last handshake), the router's WireGuard server when enabled (clients, and who connected in 24 h), each OpenVPN client that is running or set to start with the WAN, VPNMON-R3 restarts (with the 7-day count when there were 3 or more); **To watch** when one tunnel was restarted 10 times or more in 24 h | interface down, no handshake for 10 min (setting) or never, OpenVPN error, still connecting, connected without its interface, or stopped while set to start with WAN, WireGuard server enabled but down, VPNMON-R3 not running |
 | Speed tests | spdMerlin | latest result per interface; **To watch** when a download or upload is 30% or more below its usual best at the same time of day (see below) | no new result for 25 h (interfaces excluded from automatic tests in spdMerlin are shown, never alerted), failed tests |
 | Backups | BACKUPMON | last NVRAM / JFFS / EXT Drive (USB) backup | no BACKUPMON log or no completed NVRAM backup, last NVRAM backup older than 26 h, BACKUPMON errors |
 | New devices | DHCP (dnsmasq) | MAC addresses never seen before; optionally an **e-mail within 2 minutes** (see below) | a new device joined the LAN (not again for a device already announced by e-mail) |

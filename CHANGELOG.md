@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.7.2 - 2026-11-25
+- VPN: the router's own **WireGuard server**, when it is enabled: number of clients, and which
+  ones connected in the last 24 h ("iPhone (last seen 21:31)"), so a connection you did not make
+  shows up. An alert if the server is enabled but its interface is down. No key is read: clients
+  are matched by their tunnel address.
+
 ## v0.7.1 - 2026-11-19
 - Mail language: **dates are translated** too - day and month names ("dim. 15 nov. 11:25"), and
   the "d" of durations in French and Italian ("3j16h"). They come from the `@Mon => ...` lines at
