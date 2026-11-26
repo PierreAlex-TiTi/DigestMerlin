@@ -84,7 +84,7 @@ When something is wrong, the subject becomes `[ATTENTION]` and the ALERTS sectio
 | Speed tests | spdMerlin | latest result per interface; **To watch** when a download or upload is 30% or more below its usual best at the same time of day (see below) | no new result for 25 h (interfaces excluded from automatic tests in spdMerlin are shown, never alerted), failed tests |
 | Backups | BACKUPMON | last NVRAM / JFFS / EXT Drive (USB) backup | no BACKUPMON log or no completed NVRAM backup, last NVRAM backup older than 26 h, BACKUPMON errors |
 | New devices | DHCP (dnsmasq) | MAC addresses never seen before; optionally an **e-mail within 2 minutes** (see below) | a new device joined the LAN (not again for a device already announced by e-mail) |
-| System | — (Entware `findutils` for the permission check) | firmware (and pending MerlinAU update), uptime, WAN link drops (with the 7-day count when there were 2 or more), load, memory, temperature, storage, expiry of the router's HTTPS certificate, an nvram command stuck right now, files writable by anyone in /jffs/scripts, /jffs/addons and /jffs/configs | firmware changed, WAN link dropped (outside a planned window, see Settings), disk almost full, HTTPS certificate expiring within 30 days or expired, an nvram command stuck for more than 2 minutes, a script writable by anyone, CPU temperature (optional), no reboot for too long (optional) |
+| System | — (Entware `findutils` for the permission check) | firmware (and pending MerlinAU update), uptime, WAN link drops (with the 7-day count when there were 2 or more), load, memory, temperature, storage, expiry of the router's HTTPS certificate, an nvram command stuck right now, files writable by anyone in /jffs/scripts, /jffs/addons and /jffs/configs; a `DNS` or `Clock` line only when something is wrong (see below) | firmware changed, WAN link dropped (outside a planned window, see Settings), disk almost full, HTTPS certificate expiring within 30 days or expired, an nvram command stuck for more than 2 minutes, a script writable by anyone, CPU temperature (optional), no reboot for too long (optional), the router cannot resolve names (DNS), the clock is not synchronised (NTP) |
 
 **To watch.** Some changes are worth knowing about without being a problem yet. When a speed test
 result is 30% or more below the usual best of that interface **at the same time of day**, the digest
@@ -111,6 +111,19 @@ spdMerlin keeps only its last 10 results, so DigestMerlin keeps its own 30-day h
 same time of day are known, i.e. after 3 days (also after a change of VPN server). The results
 made on the day of a server change count for no server, as the digest cannot tell which of them
 were made before the change.
+
+**DNS and clock.** The System section asks the router's own DNS (and each server it forwards to)
+for `www.google.com`, and checks that the clock is synchronised. Nothing is shown while all is
+well. When the router cannot resolve names at all, or its clock is not set, it is an alert (the
+VPN, the DNS-over-TLS and the scheduled tasks need both); when only some of the servers do not
+answer, it is a line to watch, with their addresses.
+
+**Trends.** A problem that comes back is worth more than one bad day. The digest keeps one line
+per day for WAN link drops, VPN tunnel restarts (counted from 3 a day), failed speed tests, DNS
+problems and an unsynchronised clock (`state/trend.hist`, 7 days). When one of them happened
+today and on at least 2 other days of the last 7, SUMMARY says so, e.g.
+`To watch: WAN link drops on 3 days of the last 7`. A good day shows nothing, whatever the week.
+A preview never records anything.
 
 ## Requirements
 
@@ -168,6 +181,7 @@ The main actions also exist as commands - handy for scripts, and `section` helps
 sh /jffs/scripts/digestmerlin.sh preview          # build and print the digest (no e-mail)
 sh /jffs/scripts/digestmerlin.sh run              # build and e-mail it
 sh /jffs/scripts/digestmerlin.sh section vpn      # run a single section
+sh /jffs/scripts/digestmerlin.sh diag             # quick check: Internet, DNS, clock, VPN
 sh /jffs/scripts/digestmerlin.sh install 18:30    # e-mail it every day at 18:30
 sh /jffs/scripts/digestmerlin.sh unschedule       # stop the daily e-mail (files kept)
 sh /jffs/scripts/digestmerlin.sh update           # update to the latest version
@@ -176,6 +190,12 @@ sh /jffs/scripts/digestmerlin.sh uninstall        # remove DigestMerlin complete
 
 `install` adds a cron job and one line, marked `# DigestMerlin`, to `/jffs/scripts/services-start`
 so the schedule survives reboots. `unschedule` removes both.
+
+**Quick check.** When something does not work, menu option `d` (or `diag`) checks in order whether
+the router reaches the Internet without DNS (ping 1.1.1.1 / 8.8.8.8), whether its DNS and each of
+its DNS servers answer, the DNS-over-TLS relay when it is on, the clock, each enabled WireGuard
+client and the WireGuard server, and that the digest (and spdMerlin, when installed) is scheduled.
+It names the first check that failed, with a hint. It changes nothing and takes a few seconds.
 
 The first `run` records the devices currently on your LAN. Devices that were offline at
 that moment (a TV, a printer, a console...) are reported once when they reconnect during
@@ -215,6 +235,7 @@ corrections from native speakers are welcome.
    check the e-mail settings in amtm again (an expired app password is a common cause).
    SendEmail can also send its own test: `/jffs/scripts/SendEmail -test`.
 3. Check that the daily e-mail is scheduled (header: `Daily e-mail : HH:MM`, otherwise option 3).
+4. Menu option `d` (quick check): without DNS or a synchronised clock, no e-mail can leave.
 
 A digest that could not be sent is reported in the ALERTS of the next one, with its own alerts.
 
@@ -302,7 +323,7 @@ Updates never remove your own sections. Give yours a name of its own (e.g. `90-m
 a file with exactly the same name as one shipped with DigestMerlin would be replaced by it.
 
 `lib.sh` provides `read_logs` and `in_window` (syslog lines of the last 24 h), `nv` (nvram read,
-stopped after 5 s), `fmt_age`, `fmt_time`, and `state_get` / `state_set` to remember a value between runs.
+stopped after 5 s), `fmt_age`, `fmt_time`, and `state_get` / `state_set` to remember a value between runs, and `trend_note` to add a kind of problem to the trends.
 
 ## Files
 

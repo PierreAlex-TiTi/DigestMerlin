@@ -1,6 +1,16 @@
 # Changelog
 
-## v0.7.2 - 2026-11-25
+## v0.8.0 - 2026-11-25
+- System: **DNS and clock**. An alert when the router cannot resolve names or its clock is not
+  synchronised (NTP); a line to watch when only some DNS servers do not answer, with their
+  addresses. Nothing is shown while all is well. (Seen on a router on 24 Nov. 2026: the DNS
+  provider stopped answering, the clock was lost at the next reboot, and nothing worked.)
+- **Trends**: WAN link drops, VPN restarts (3 or more a day), failed speed tests, DNS problems
+  and an unsynchronised clock are kept per day for 7 days. **To watch** when one of them happened
+  today and on at least 2 other days of the last 7. Nothing on a good day.
+- **Quick check** (menu `d`, or `digestmerlin.sh diag`): Internet without DNS, DNS and each DNS
+  server, DNS-over-TLS relay, clock, WireGuard clients and server, scheduled tasks; names the
+  first failed check with a hint. Read-only.
 - VPN: the router's own **WireGuard server**, when it is enabled: number of clients, and which
   ones connected in the last 24 h ("iPhone (last seen 21:31)"), so a connection you did not make
   shows up. An alert if the server is enabled but its interface is down. No key is read: clients

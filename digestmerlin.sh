@@ -1,7 +1,7 @@
 #!/bin/sh
 # shellcheck disable=SC2034
-version=0.7.2
-VERSION="0.7.2-test1"
+version=0.8.0
+VERSION="0.8.0-test1"
 # Both lines above carry the same release number (a test build adds "-testN"
 # to the second only): amtm reads the first, menus of v0.2.0 read the second. Keep them on top, before any other mention.
 #
@@ -14,6 +14,7 @@ VERSION="0.7.2-test1"
 #   digestmerlin.sh preview          build the digest and print it (no e-mail)
 #   digestmerlin.sh run              build the digest and e-mail it
 #   digestmerlin.sh section NAME     run one section (e.g. "vpn") for testing
+#   digestmerlin.sh diag             quick check: Internet, DNS, clock, VPN, schedules
 #   digestmerlin.sh install [HH:MM]  schedule the daily e-mail (default 18:30)
 #   digestmerlin.sh unschedule       stop the daily e-mail (files are kept)
 #   digestmerlin.sh setup            download and install all files (first install)
@@ -200,6 +201,33 @@ section_name() {   # 30-vpn.sh -> vpn
     echo "${n#[0-9][0-9]-}"
 }
 
+# Problems that keep coming back: "To watch" when the same kind of problem (noted
+# by the sections with trend_note) happened on 3 days or more of the last 7, and
+# again today - a problem already solved does not stay in the e-mail all week.
+# VPN restarts count from 3 a day (VPNMON-R3 changing server now and then is
+# normal). State: one line per day and kind ("2026-11-24 dns 1"); a preview
+# reads it but never saves.
+trend_update() {
+    [ -s "$DM_TREND" ] || return 0
+    td=$(date -d "@$NOW" +%Y-%m-%d 2>/dev/null) || return 0
+    tc=$(date -d "@$((NOW - 6 * 86400))" +%Y-%m-%d 2>/dev/null) || return 0
+    th="$DM_STATE/trend.hist"
+    { awk -v t="$td" -v c="$tc" 'NF == 3 && $1 >= c && $1 < t && $3 ~ /^[0-9]+$/' "$th" 2>/dev/null
+      awk -v t="$td" 'NF == 2 && $2 ~ /^[0-9]+$/ && !s[$1]++ { print t, $1, $2 }' "$DM_TREND"; } > "$WORK/trend"
+    awk -v t="$td" '
+        BEGIN { m["vpn"] = 3
+                L["wan"] = "WAN link drops"; L["vpn"] = "VPN restarts (3 or more a day)"
+                L["speed"] = "Failed speed tests"; L["dns"] = "DNS problems"; L["clock"] = "Clock not synchronised" }
+        $3 >= (($2 in m) ? m[$2] : 1) { if (!(($1, $2) in d)) { d[$1, $2] = 1; n[$2]++ }; if ($1 == t) now[$2] = 1 }
+        END { for (k in now) if ((k in L) && n[k] >= 3) print L[k] " on " n[k] " days of the last 7" }' "$WORK/trend" \
+        | sort >> "$DM_WATCH"
+    if [ -z "$DM_PREVIEW" ]; then
+        # shellcheck disable=SC2174
+        mkdir -p -m 700 "$DM_STATE" 2>/dev/null && cp "$WORK/trend" "$th.new" 2>/dev/null && mv "$th.new" "$th" 2>/dev/null
+    fi
+    return 0
+}
+
 build_digest() {
     NOW=$(date +%s)
     WINDOW_H=24
@@ -208,8 +236,9 @@ build_digest() {
     rm -rf "$WORK"; mkdir -m 700 "$WORK" || return 1
     DM_ALERTS="$WORK/alerts"
     DM_WATCH="$WORK/watch"
-    : > "$DM_ALERTS"; : > "$DM_WATCH"
-    export NOW WINDOW_H SINCE DM_ALERTS DM_WATCH
+    DM_TREND="$WORK/trend.today"
+    : > "$DM_ALERTS"; : > "$DM_WATCH"; : > "$DM_TREND"
+    export NOW WINDOW_H SINCE DM_ALERTS DM_WATCH DM_TREND
     trap 'rm -rf "$WORK" ${LOCK_HELD:+"$LOCK_HELD"}' EXIT
     trap 'rm -rf "$WORK" ${LOCK_HELD:+"$LOCK_HELD"}; exit 1' INT TERM
 
@@ -257,6 +286,7 @@ build_digest() {
         printf '=== %s ===\n%s\n\n' "$title" "$body" >> "$out"
     done
 
+    trend_update
     host=$(nv productid)
     if [ "$n_ok" -eq 0 ] && [ "$n_bad" -eq 0 ]; then
         if [ -n "$(ls "$SECTIONS_DIR"/[0-9][0-9]-*.sh 2>/dev/null)" ]; then
@@ -1345,6 +1375,7 @@ menu() {
         say "   6. Check for updates"
         say "   7. Uninstall"
         say " -----------------------------------------------"
+        say "   d. Quick check (Internet, DNS, clock, VPN)"
         say "   e. Exit"
         printf '\n Choose an option: '
         read -r ans || exit 0
@@ -1367,12 +1398,68 @@ menu() {
             5) menu_settings ;;
             6) menu_update ;;
             7) menu_uninstall ;;
+            d|D) do_diag; pause ;;
             e|E) say ""; exit 0 ;;
         esac
         # Settings may have changed: reload them.
         DISABLED_SECTIONS=""; SUBJECT_PREFIX=""
         load_conf
     done
+}
+
+# Quick check for a day of trouble, in the order a failure spreads: Internet,
+# DNS, clock, VPN, scheduled tasks. Read-only; the first failed check comes with
+# a hint. (24 Nov 2026: an hour of manual checks for what this prints at once.)
+do_diag() {
+    [ -f "$SECTIONS_DIR/lib.sh" ] || { say " Sections missing - run: sh $SCRIPT_PATH update"; return 1; }
+    (
+    . "$SECTIONS_DIR/lib.sh"
+    first=""; hint=""
+    chk() {   # status label hint
+        if [ "$1" -eq 0 ]; then say " OK    $2"; else
+            say " FAIL  $2"; [ -n "$first" ] || { first=$2; hint=$3; }
+        fi
+    }
+    say ""; say " DigestMerlin quick check - $(date '+%a %d %b %Y %H:%M')"; say ""
+    { ping -c 1 -W 2 1.1.1.1 || ping -c 1 -W 2 8.8.8.8; } >/dev/null 2>&1
+    chk $? "Internet reachable without DNS (ping 1.1.1.1 / 8.8.8.8)" \
+        "the router has no Internet: check the modem or box and the WAN cable"
+    srv=$(dns_servers); bad=""
+    for s in $srv; do dns_answers "$s" || bad="${bad:+$bad }$s"; done
+    if [ -n "$bad" ]; then h="DNS server(s) not answering ($bad): choose another provider (WAN > Internet Connection > DNS)"
+    else h="the DNS servers answer but the router does not: service restart_dnsmasq"; fi
+    dns_answers 127.0.0.1
+    chk $? "DNS of the router resolves $DNS_TEST_NAME" "$h"
+    for s in $srv; do
+        case " $bad " in *" $s "*) r=1 ;; *) r=0 ;; esac
+        chk $r "DNS server $s answers" "choose another DNS provider (WAN > Internet Connection > DNS)"
+    done
+    if [ "$(nv dnspriv_enable)" = "1" ]; then
+        pidof stubby >/dev/null 2>&1
+        chk $? "DNS-over-TLS relay (stubby) running" "service restart_dnsmasq"
+    fi
+    [ "$(nv ntp_ready)" != "0" ] && [ "$(date +%Y)" -ge 2025 ]
+    chk $? "Clock synchronised (NTP)" \
+        "set it by hand (date -s \"YYYY-MM-DD HH:MM\"); it syncs by itself once the DNS works"
+    for n in 1 2 3 4 5; do
+        [ "$(nv "wgc${n}_enable")" = "1" ] || continue
+        ping -c 1 -W 3 -I "wgc$n" 1.1.1.1 >/dev/null 2>&1
+        chk $? "WireGuard client WGC$n passes traffic" "restart it (VPNMON-R3, or VPN > VPN Client)"
+    done
+    if [ "$(nv wgs1_enable)" = "1" ]; then
+        ip link show wgs1 >/dev/null 2>&1
+        chk $? "WireGuard server (wgs1) up" "VPN > VPN Server > WireGuard: apply again"
+    fi
+    cru l 2>/dev/null | grep -q '#DigestMerlin#'
+    chk $? "Daily digest scheduled" "menu option 3"
+    if [ -x /jffs/scripts/spdmerlin ]; then
+        cru l 2>/dev/null | grep -q '#spdMerlin_generate#'
+        chk $? "spdMerlin tests scheduled" "/jffs/scripts/spdmerlin startup /tmp/mnt/<your USB drive>"
+    fi
+    say ""
+    if [ -z "$first" ]; then say " All checks passed."
+    else say " First failed check: $first"; say " Hint: $hint"; fi
+    )
 }
 
 usage() {
@@ -1444,6 +1531,7 @@ case "$1" in
         fi ;;
     version)    say "DigestMerlin v$VERSION" ;;
     watch)      do_watch ;;
+    diag)       do_diag ;;
     *)
         usage
         exit 1
