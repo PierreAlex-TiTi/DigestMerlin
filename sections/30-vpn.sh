@@ -117,6 +117,7 @@ if [ -f "$VR3" ]; then
             printf '  %s %s -> %s\n' "$(printf '%s' "$4" | cut -c1-5)" "$slot" "$srv"
         done)
         restarts=$(printf '%s\n' "$events" | grep -v '^R$' | grep .)
+        trend_note vpn "$(printf '%s' "$restarts" | grep -c .)"
         n7=$(printf '%s\n' "$events" | grep -c '^R$')
         # The 7-day count is only shown when restarts keep coming back.
         week=""; [ "$n7" -ge 3 ] && week=" | 7 days: $n7"

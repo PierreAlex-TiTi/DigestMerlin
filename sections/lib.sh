@@ -121,6 +121,49 @@ add_watch() {
     fi
 }
 
+# How many problems of a kind a section saw today ("wan 2", "dns 1"...). The main
+# script keeps one line per day and kind, and puts "To watch" in the SUMMARY when
+# the same kind came back on 3 days or more of the last 7, today included.
+trend_note() {
+    [ -n "$DM_TREND" ] && printf '%s %s\n' "$1" "${2:-0}" >> "$DM_TREND"
+    return 0
+}
+
+# A command that can hang (a DNS server that does not answer): 5 s at most, as
+# for nv below. Prints its output; status 0 only if it ended in time and well.
+run5() {
+    _ro="/tmp/digestmerlin-r5.$$"
+    "$@" > "$_ro" 2>&1 &
+    _rp=$!; _ri=0
+    while kill -0 "$_rp" 2>/dev/null && [ "$_ri" -lt 50 ]; do
+        if usleep 100000 2>/dev/null; then _ri=$((_ri + 1)); else sleep 1; _ri=$((_ri + 10)); fi
+    done
+    if kill -0 "$_rp" 2>/dev/null; then
+        kill -9 "$_rp" 2>/dev/null; wait "$_rp" 2>/dev/null; _rr=1
+    else
+        wait "$_rp"; _rr=$?
+    fi
+    cat "$_ro" 2>/dev/null; rm -f "$_ro"
+    return "$_rr"
+}
+
+# DNS: does server $1 resolve a well-known name? The router itself is 127.0.0.1.
+DNS_TEST_NAME="${DNS_TEST_NAME:-www.google.com}"
+dns_answers() {
+    run5 nslookup "$DNS_TEST_NAME" "$1" | grep -q '^Name:'
+}
+# The servers the router asks (IPv4, 4 at most): the DNS-over-TLS list when it
+# is on (asked here on port 53, which these providers also answer), else
+# dnsmasq's list, else the WAN's.
+dns_servers() {
+    if [ "$(nv dnspriv_enable)" = "1" ]; then
+        nv dnspriv_rulelist | tr '<' '\n' | cut -d'>' -f1
+    else
+        sed -n 's/^server=//p' "${RESOLV_DNSMASQ:-/tmp/resolv.dnsmasq}" 2>/dev/null
+        nv wan0_dns | tr ' ' '\n'
+    fi | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | grep -v '^127\.' | awk '!s[$0]++' | head -4
+}
+
 # Small persistent values kept between runs (one file per key).
 state_get() {
     cat "$DM_STATE/$1" 2>/dev/null

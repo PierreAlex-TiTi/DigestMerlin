@@ -116,4 +116,5 @@ if [ -n "$errs" ]; then
     echo "Failed tests (${WINDOW_H}h): $n"
     add_alert "spdMerlin: $n failed speed test(s) in ${WINDOW_H}h"
 fi
+trend_note speed "$(printf '%s' "$errs" | grep -c .)"
 exit 0

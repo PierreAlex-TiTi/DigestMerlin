@@ -162,6 +162,35 @@ else
     add_alert "System: WAN link dropped $drops $t in 24h ($info)"
 fi
 [ -n "$popen_n" ] && add_alert "System: $popen_n not back up after a drop in the planned window ($WAN_PLANNED)"
+trend_note wan "$drops"
+
+# --- DNS and clock: nothing is shown when they are fine. On 24 Nov 2026 Quad9
+# stopped answering users in France: the router could no longer resolve names,
+# and after a reboot its clock could not sync, so the VPN and spdMerlin stopped
+# in turn. Here the cause is named at once.
+dns_bad=""
+for s in $(dns_servers); do
+    dns_answers "$s" || dns_bad="${dns_bad:+$dns_bad, }$s"
+done
+dnsp=0
+if ! dns_answers 127.0.0.1; then
+    dnsp=1
+    echo "DNS: the router cannot resolve names${dns_bad:+ (not answering: $dns_bad)}"
+    add_alert "System: the router cannot resolve names (DNS)${dns_bad:+ - servers not answering: $dns_bad}"
+elif [ -n "$dns_bad" ]; then
+    dnsp=1
+    echo "DNS: not answering: $dns_bad"
+    add_watch "DNS server(s) not answering: $dns_bad"
+fi
+trend_note dns "$dnsp"
+# ntp_ready "0" only: an nvram read that does not answer is not a clock problem.
+clk=0
+if [ "$(nv ntp_ready)" = "0" ] || [ "$(date +%Y)" -lt 2025 ]; then
+    clk=1
+    echo "Clock: not synchronised ($(date '+%a %d %b %Y %H:%M'))"
+    add_alert "System: the router clock is not synchronised (NTP) - the VPN, the DNS and scheduled tasks may fail"
+fi
+trend_note clock "$clk"
 
 # --- An nvram command stuck right now. On some firmware builds an nvram read
 # sometimes never returns; the add-on that called it then hangs too (spdMerlin,
